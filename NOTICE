@@ -1,0 +1,57 @@
+TRON2 OpenPI Deployment
+
+This repository is a TRON2 deployment-focused derivative of the OpenPI project.
+It contains LimX modifications for TRON2 policy transforms, deployment
+configuration, robot client examples, Bridge observations, and RTC integration.
+
+Upstream and third-party notices:
+
+- OpenPI: this repository is based on the OpenPI project originally developed
+  by Physical Intelligence. Commit
+  `e01d2290dfef823304b9a59a94b29e5945e38b2d` is used as a working baseline;
+  exact origin is unknown for individual components unless separately pinned.
+  Upstream OpenPI source is under the Apache License 2.0 unless otherwise noted.
+
+- Gemma / PaliGemma: source files remain governed by their file-level source
+  licenses. `LICENSE_GEMMA.txt` is preserved byte-for-byte as
+  upstream-carried model asset terms material. No Gemma or PaliGemma weights,
+  checkpoints, or model derivatives are included in this source snapshot.
+  External model assets and derivatives use the applicable Gemma Terms; those
+  terms do not relicense or add restrictions to Apache source code. Any future
+  model asset, model derivative, or Hosted Service publication requires
+  re-review.
+  Required notice: "Gemma is provided under and subject to the Gemma Terms of
+  Use found at ai.google.dev/gemma/terms".
+
+- Big Vision: several JAX model components, including Gemma/SigLIP/Vision
+  Transformer adaptations and attention-mask utilities, are adapted from or
+  derived from Big Vision code under the Apache License 2.0.
+
+- HuggingFace Transformers: files under
+  src/openpi/models_pytorch/transformers_replace/ include code derived from
+  HuggingFace Transformers. Those files retain upstream copyright and Apache
+  License 2.0 notices in their file headers.
+
+- Physical Intelligence Kinetix and HuggingFace LeRobot RTC: RTC configuration,
+  prefix-attention, and real-time chunking logic are based on public Kinetix and
+  LeRobot RTC implementations as noted in src/openpi/rtc/.
+
+- msgpack-numpy: packages/openpi-client/src/openpi_client/msgpack_numpy.py is
+  adapted from https://github.com/lebedov/msgpack-numpy to avoid object-array
+  pickle fallback behavior.
+
+- ALOHA, DROID, LIBERO, and UR5 examples: this repository retains upstream
+  OpenPI examples and configuration code for external robot/simulation
+  projects. ALOHA and LIBERO are external source checkouts expected at
+  `third_party/aloha` and `third_party/libero`; they are not included in this
+  source snapshot and remain governed by their own licenses. Their approved
+  source URLs and pinned commits are documented in the respective example
+  README files. Other examples may require additional third-party dependencies,
+  datasets, or environments governed by their own licenses.
+
+No model weights, datasets, private deployment profiles, real robot addresses,
+camera serial numbers, credentials, or generated logs are included as part of
+this public notice.
+
+Component paths, source references, modification status, and license files are
+listed in `THIRD_PARTY_NOTICES.md` and `MODIFICATIONS.md`.

@@ -1,0 +1,58 @@
+name: Feature request
+description: Propose a public-scope improvement without sharing sensitive material.
+title: "[Feature]: "
+labels: []
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe only information suitable for a public issue. Do not paste
+        credentials, customer data, private logs, model weights, private
+        endpoints, or other confidential material.
+  - type: textarea
+    id: use_case
+    attributes:
+      label: Public use case
+      description: Describe the problem and who would benefit from the proposed change.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe the expected behavior without including private implementation details.
+    validations:
+      required: true
+  - type: dropdown
+    id: robot_scope
+    attributes:
+      label: Real-robot scope
+      description: Would the change affect real-robot or hardware-in-the-loop operation?
+      options:
+        - Software-only; no robot hardware involved
+        - Real robot or hardware-in-the-loop involved
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: safety_impact
+    attributes:
+      label: Safety impact
+      description: Explain any expected effect on robot motion or safety boundaries; write "None" when there is no known effect.
+    validations:
+      required: true
+  - type: textarea
+    id: third_party
+    attributes:
+      label: Third-party and license impact
+      description: Identify any proposed third-party source or license; write "None" when none is planned.
+    validations:
+      required: true
+  - type: checkboxes
+    id: sensitive_material
+    attributes:
+      label: Sensitive material check
+      options:
+        - label: I removed credentials, customer data, private logs, model weights, and other confidential values.
+          required: true
