@@ -1,0 +1,176 @@
+# Network deployment boundary:
+# - All current policy, robot-control, and Bridge interfaces are supported only
+#   for authorized systems on a controlled robot LAN.
+# - Do not expose them to the Internet or use them on an untrusted or shared network.
+# - Not every current transport provides application authentication or TLS.
+# - Any Internet-facing, cross-site, or cloud topology requires a separate
+#   security review before use.
+# - Source disclosure is not a functional safety approval or real-robot certification.
+# These comments document the boundary and do not change the runtime defaults below.
+
+policy:
+  # Training config name defined in src/openpi/training/config.py.
+  config: TASK_CONFIG_NAME
+
+  # Dataset/repo id used by the checkpoint assets, for example norm statistics.
+  repo_id: DATASET_REPO_ID
+
+  # Absolute path or repo-relative path to the trained checkpoint step directory.
+  checkpoint_dir: /path/to/checkpoints/TASK_CONFIG_NAME/experiment/step
+
+  # Default language instruction used when the client does not pass --prompt.
+  default_prompt: TASK_PROMPT
+
+  # Set true only when you want to save raw policy inputs/outputs for debugging.
+  record: false
+
+  # Optional inference overrides. Leave null to use the training config.
+  action_horizon: 50
+  state_dim: 16
+  use_delta_joint_actions: false
+
+server:
+  # The server listens on 0.0.0.0 so clients on the same machine/network can connect.
+  host: 0.0.0.0
+  port: 8000
+
+  # JAX persistent compilation cache is controlled by OPENPI_JAX_CACHE_DIR.
+  # Default: /tmp/openpi_jax_cache
+
+client:
+  # Policy server address from the client process.
+  policy_host: 127.0.0.1
+  policy_port: 8000
+
+  # Observation source:
+  # bridge (camera cables plugged directly into the main control board): use
+  # TRON2 Bridge WebSocket for images and state.
+  # legacy (camera cables connected to the host computer over USB): use local
+  # RealSense cameras, while robot state comes from the robot WebSocket.
+  observation_source: bridge
+
+  # State sent to the policy: 16 means arms+grippers, 18 includes head joints.
+  state_dim: 16
+
+  # Policy action playback rate. publish_rate is the background ServoJ command rate.
+  fps: 30.0
+  publish_rate: 300.0
+
+  # Non-RTC client: number of policy chunks to run. Use null for unlimited.
+  max_steps: null
+
+  # RTC client loop. Set true when running examples/tron2/pi_client_rtc.py.
+  rtc_enabled: false
+
+  # RTC run duration in seconds. Set 0 for unlimited.
+  duration: 120.0
+
+  # RTC timing in paper terms. H is read from server metadata/action_horizon.
+  # execution_horizon is s; delay is the initial d in action frames.
+  execution_horizon: 10
+  delay: 2
+
+  # Inference-time RTC guidance. When trained_rtc_mode is true, the model uses
+  # training-time RTC conditioning and this can usually be false.
+  rtc_guidance_enabled: true
+  rtc_guidance_weight: 10.0
+  trained_rtc_mode: false
+
+  # Recover from short bridge/observation gaps without reusing stale observations.
+  obs_timeout_budget_s: 5.0
+  obs_recovery_blend_frames: 6
+
+  # Optional client-side smoothing of executable actions after queue replacement.
+  rtc_action_postprocess:
+    enabled: false
+    boundary_blend_frames: 0
+    boundary_blend_curve: smoothstep
+    boundary_blend_scope: arm
+    ema_alpha: 1.0
+    ema_frames: 0
+    ema_scope: arm
+
+  log_level: INFO
+
+  # Optional CSV logging for commanded actions and observed states.
+  save_record: false
+  action_output_path: debug_images/tron2_action_data.csv
+  state_output_path: debug_images/tron2_state_data.csv
+  rtc_action_output_path: debug_images/tron2_rtc_action_data.csv
+  rtc_state_output_path: debug_images/tron2_rtc_state_data.csv
+
+  # Used only when observation_source is "legacy".
+  legacy_use_time_sync: true
+
+  # Optional per-client prompt. Leave null to use policy.default_prompt.
+  prompt: null
+
+robot:
+  # Robot WebSocket controller address.
+  ip: ROBOT_IP
+  port: 5000
+
+  # Arm initialization pose, 14 values: left arm 7 + right arm 7.
+  init_joints:
+    - 0.026899
+    - 0.2612
+    - -0.02709991
+    - -1.5477003
+    - 0.265
+    - 0.0180999
+    - -0.0614999
+    - 0.008999
+    - -0.269
+    - 0.02069998
+    - -1.5567001
+    - -0.254
+    - -0.02309972
+    - 0.06469989
+
+  # Optional head initialization pose [pitch, yaw].
+  init_head: null
+
+  # Feedback polling settings for the robot WebSocket transport.
+  state_queue_maxlen: 7
+  polling_rate: 200.0
+  connection_timeout: 5.0
+
+# Configure this section only when using bridge mode.
+# The default values are usually enough.
+bridge:
+  # Required when client.observation_source is "bridge".
+  host: wss://BRIDGE_HOST
+  ws_path: /bridge/ws
+
+  # "bridge" uses bridge-aligned joint state. "legacy" uses robot WebSocket state
+  # while still taking images from the bridge.
+  state_source: bridge
+
+  image_max_fps: 0
+  align_max_delay_ms: 200
+  verify_tls: false
+  save_debug_images: false
+  debug_image_dir: debug_images
+
+
+# Replace HEAD_CAMERA_SERIAL, LEFT_WRIST_CAMERA_SERIAL, and
+# RIGHT_WRIST_CAMERA_SERIAL with your actual RealSense camera serial numbers.
+camera:
+  # Required when client.observation_source is "legacy".
+  # Map each RealSense serial number to the image name expected by the policy.
+  serial_to_name:
+    HEAD_CAMERA_SERIAL: cam_high
+    LEFT_WRIST_CAMERA_SERIAL: cam_left_wrist
+    RIGHT_WRIST_CAMERA_SERIAL: cam_right_wrist
+
+  camera_names:
+    - cam_high
+    - cam_left_wrist
+    - cam_right_wrist
+
+  # RealSense color stream resolution is [height, width, channels].
+  resolution: [480, 640, 3]
+  fps: 30
+  max_queue_size: 10
+  save_debug_images: false
+  debug_image_dir: debug_images

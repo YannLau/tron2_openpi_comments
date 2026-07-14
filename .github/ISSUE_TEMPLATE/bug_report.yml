@@ -1,0 +1,67 @@
+name: Bug report
+description: Report a reproducible software defect without sharing sensitive material.
+title: "[Bug]: "
+labels: []
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve the project. Do not paste credentials,
+        customer data, private logs, model weights, private endpoints, or other
+        confidential material. Redact sensitive values before submitting.
+        Report any suspected vulnerability privately to
+        opensource@limxdynamics.com; do not submit it as a public issue.
+  - type: textarea
+    id: description
+    attributes:
+      label: Problem description
+      description: Describe the observed and expected software behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Provide the minimal public configuration and commands needed to reproduce the problem.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include the operating system, Python version, and relevant public dependency versions.
+    validations:
+      required: true
+  - type: dropdown
+    id: robot_scope
+    attributes:
+      label: Real-robot scope
+      description: Did the problem occur during real-robot or hardware-in-the-loop use?
+      options:
+        - Software-only; no robot hardware involved
+        - Real robot or hardware-in-the-loop involved
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: safety_impact
+    attributes:
+      label: Safety impact
+      description: Explain any effect on robot motion or safety boundaries; write "None" when there is no known effect.
+    validations:
+      required: true
+  - type: textarea
+    id: third_party
+    attributes:
+      label: Third-party and license impact
+      description: Identify any affected third-party source or license; write "None" when none is known.
+    validations:
+      required: true
+  - type: checkboxes
+    id: sensitive_material
+    attributes:
+      label: Sensitive material check
+      options:
+        - label: I removed credentials, customer data, private logs, model weights, and other confidential values.
+          required: true

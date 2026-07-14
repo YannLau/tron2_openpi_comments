@@ -1,0 +1,44 @@
+# TRON2 training task configuration template.
+# Copy this file to configs/tron2_tasks/<task>.yaml and adjust values.
+#
+# Usage:
+#   uv run scripts/train_tron2_task.py configs/tron2_tasks/<task>.yaml
+
+# Unique config name. Used as the checkpoint subdirectory name.
+name: pi05_tron2_example
+
+# LeRobot dataset repo id, local path, or Hugging Face Hub id.
+repo_id: example_dataset
+
+# Natural language task instruction.
+prompt: Pick up the object and place it on the target
+
+# Path to pretrained weights, for example the pi0.5 base params or a prior checkpoint.
+weight_loader: gs://openpi-assets/checkpoints/pi05_base/params
+
+# Training settings.
+num_train_steps: 20000
+save_interval: 5000
+batch_size: 32
+action_horizon: 50
+state_dim: 16
+
+# Training-time RTC. Set null or remove to disable.
+rtc_training_simulated_delay: 10
+
+# Camera observation keys in the LeRobot parquet files.
+cam_high_key: observation.images.cam_high
+cam_left_wrist_key: observation.images.cam_left_wrist
+cam_right_wrist_key: observation.images.cam_right_wrist
+
+# State and action keys.
+state_key: observation.state
+action_key: action
+
+# TRON2 data should normally keep these false.
+adapt_to_pi: false
+use_delta_joint_actions: false
+
+# Output paths.
+assets_base_dir: ./assets
+checkpoint_base_dir: ./checkpoints
