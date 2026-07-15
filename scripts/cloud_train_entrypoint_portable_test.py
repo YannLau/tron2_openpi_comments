@@ -1,3 +1,4 @@
+import os
 import pathlib
 import subprocess
 
@@ -62,6 +63,9 @@ def test_hf_lerobot_home_is_used_as_default_data_dir(tmp_path: pathlib.Path):
     weight_path = tmp_path / "checkpoint" / "params"
     weight_path.mkdir(parents=True)
 
+    env = os.environ.copy()
+    env["HF_LEROBOT_HOME"] = str(data_dir)
+
     result = subprocess.run(
         [
             "bash",
@@ -79,11 +83,82 @@ def test_hf_lerobot_home_is_used_as_default_data_dir(tmp_path: pathlib.Path):
         check=False,
         capture_output=True,
         text=True,
-        env={"HF_LEROBOT_HOME": str(data_dir)},
+        env=env,
     )
 
     assert result.returncode == 0, result.stderr
     assert f"Dataset root:     {data_dir}" in result.stdout
+
+
+def test_platform_mount_environment_paths_are_used(tmp_path: pathlib.Path):
+    platform_root = tmp_path / "data"
+    (platform_root / "input" / "data").mkdir(parents=True)
+    (platform_root / "input" / "meta").mkdir()
+    weight_path = platform_root / "checkpoint" / "params"
+    weight_path.mkdir(parents=True)
+
+    env = os.environ.copy()
+    env["DATA_DIR"] = str(platform_root)
+    env["WEIGHT_PATH"] = str(weight_path)
+    env["OUTPUT_DIR"] = str(tmp_path / "output")
+
+    result = subprocess.run(
+        [
+            "bash",
+            str(SCRIPT),
+            "--repo-id",
+            "input",
+            "--exp",
+            "cloud_test",
+            "--dry-run",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert f"Dataset root:     {platform_root}" in result.stdout
+    assert f"Model params:     {weight_path}" in result.stdout
+    assert '"repo_id": "input"' in result.stdout
+
+
+def test_custom_data_and_weight_paths_generate_task_config(tmp_path: pathlib.Path):
+    data_dir = tmp_path / "datasets"
+    (data_dir / "my_dataset" / "data").mkdir(parents=True)
+    (data_dir / "my_dataset" / "meta").mkdir()
+    weight_path = tmp_path / "weights" / "params"
+    weight_path.mkdir(parents=True)
+    output_dir = tmp_path / "outputs"
+
+    result = subprocess.run(
+        [
+            "bash",
+            str(SCRIPT),
+            "--data-dir",
+            str(data_dir),
+            "--repo-id",
+            "my_dataset",
+            "--weight",
+            str(weight_path),
+            "--output-dir",
+            str(output_dir),
+            "--exp",
+            "local_test",
+            "--dry-run",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert f"Dataset root:     {data_dir}" in result.stdout
+    assert f"Model params:     {weight_path}" in result.stdout
+    assert f"Output root:      {output_dir}" in result.stdout
+    assert '"repo_id": "my_dataset"' in result.stdout
+    assert f'"weight_loader": "{weight_path}"' in result.stdout
 
 
 def test_task_config_rejects_unsafe_experiment_name(tmp_path: pathlib.Path):
