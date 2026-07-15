@@ -4,7 +4,7 @@
 set -Eeuo pipefail
 
 PROJECT_DIR="${OPENPI_PROJECT_DIR:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)}"
-DATA_DIR="${DATA_DIR:-/data/input}"
+DATA_DIR="${DATA_DIR:-${HF_LEROBOT_HOME:-/data/input}}"
 WEIGHT_PATH="${WEIGHT_PATH:-/data/checkpoint/params}"
 OUTPUT_DIR="${OUTPUT_DIR:-/data/output}"
 
@@ -35,7 +35,7 @@ Usage:
   scripts/cloud_train_entrypoint_portable.sh --task-config FILE [--exp NAME] [options]
 
 Default platform paths:
-  dataset root:  /data/input
+  dataset root:  --data-dir, DATA_DIR, or HF_LEROBOT_HOME; fallback /data/input
   model params:  /data/checkpoint/params
   output root:   /data/output
 
@@ -53,7 +53,7 @@ Options:
   --max-frames N        Maximum frames used for normalization statistics
   --skip-norm           Skip normalization-statistics computation
   --name NAME           Override the generated training config name
-  --data-dir DIR        Override the dataset root
+  --data-dir DIR        Override the LeRobot dataset root and HF_LEROBOT_HOME
   --weight PATH         Override the initialization params path
   --output-dir DIR      Override the output root
   --task-config FILE    Use an existing task YAML instead of generating one
@@ -63,9 +63,9 @@ Options:
   --dry-run             Validate inputs and print commands without training
   -h, --help            Show this help
 
-Example matching a platform that mounts the dataset at /data/input:
+Example matching a platform that stores LeRobot datasets under /path/to/datasets:
   scripts/cloud_train_entrypoint_portable.sh \
-    --data-dir /data --repo-id input --exp example \
+    --data-dir /path/to/datasets --repo-id my_dataset --exp example \
     --weight /models/openpi-assets/checkpoints/pi_base/params \
     --steps 30000 --rtc-delay 10 --action-horizon 30 \
     --batch-size 64 --prompt-from-task --max-frames 100000

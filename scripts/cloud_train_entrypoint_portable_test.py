@@ -55,6 +55,37 @@ def test_resume_does_not_overwrite_checkpoint(tmp_path: pathlib.Path):
     assert "--overwrite" not in train_command
 
 
+def test_hf_lerobot_home_is_used_as_default_data_dir(tmp_path: pathlib.Path):
+    data_dir = tmp_path / "datasets"
+    (data_dir / "input" / "data").mkdir(parents=True)
+    (data_dir / "input" / "meta").mkdir()
+    weight_path = tmp_path / "checkpoint" / "params"
+    weight_path.mkdir(parents=True)
+
+    result = subprocess.run(
+        [
+            "bash",
+            str(SCRIPT),
+            "--repo-id",
+            "input",
+            "--weight",
+            str(weight_path),
+            "--output-dir",
+            str(tmp_path / "output"),
+            "--exp",
+            "public_test",
+            "--dry-run",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        env={"HF_LEROBOT_HOME": str(data_dir)},
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert f"Dataset root:     {data_dir}" in result.stdout
+
+
 def test_task_config_rejects_unsafe_experiment_name(tmp_path: pathlib.Path):
     task_path = tmp_path / "task.yaml"
     task_path.write_text("name: test\nrepo_id: input\nprompt: test\n")

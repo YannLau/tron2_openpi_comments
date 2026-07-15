@@ -58,6 +58,8 @@ parent-directory/
 │   ├── packages/
 │   │   └── openpi-client/
 │   ├── scripts/
+│   │   ├── cloud_train_entrypoint_portable.sh
+│   │   ├── compute_norm_stats.py
 │   │   ├── serve_policy.py
 │   │   └── train_tron2_task.py
 │   └── src/
@@ -299,13 +301,46 @@ For public task configs, prefer the YAML entry point instead of editing
 
 ```bash
 cp configs/train/tron2_tasks/example.yaml configs/train/tron2_tasks/my_task.yaml
-uv run scripts/train_tron2_task.py configs/train/tron2_tasks/my_task.yaml
+```
+
+Edit `configs/train/tron2_tasks/my_task.yaml`, then point LeRobot at your dataset
+root. If `repo_id: my_dataset`, the dataset should normally be available under
+`$HF_LEROBOT_HOME/my_dataset/` with `data/` and `meta/` subdirectories:
+
+```bash
+export HF_LEROBOT_HOME=/path/to/datasets
+```
+
+Compute normalization statistics before the first training run:
+
+```bash
+uv run scripts/compute_norm_stats.py \
+  --task-config configs/train/tron2_tasks/my_task.yaml
+```
+
+Then start training:
+
+```bash
+uv run scripts/train_tron2_task.py \
+  --task-config configs/train/tron2_tasks/my_task.yaml
+```
+
+For a one-command local/container workflow that mirrors the internal two-stage
+training flow, use the portable entrypoint. It computes normalization statistics
+first unless `--skip-norm` is passed, then launches training:
+
+```bash
+scripts/cloud_train_entrypoint_portable.sh \
+  --task-config configs/train/tron2_tasks/my_task.yaml \
+  --exp my_task \
+  --data-dir "$HF_LEROBOT_HOME" \
+  --max-frames 100000
 ```
 
 Real task YAML files are ignored by `.gitignore`; keep only
 `configs/train/tron2_tasks/example.yaml` in the public repository. The template
 supports `repo_id`, prompt, dataset column keys, `action_horizon`, `state_dim`,
-base checkpoint weights, output directories, and optional
+base checkpoint weights, output directories, `prompt_from_task`, and optional
 `rtc_training_simulated_delay`.
 
 ## Debug Outputs
