@@ -325,9 +325,39 @@ uv run scripts/train_tron2_task.py \
   --task-config configs/train/tron2_tasks/my_task.yaml
 ```
 
-For a one-command local/container workflow that mirrors the internal two-stage
-training flow, use the portable entrypoint. It computes normalization statistics
-first unless `--skip-norm` is passed, then launches training:
+For one-command training, use `scripts/cloud_train_entrypoint_portable.sh`. It
+computes normalization statistics first unless `--skip-norm` is passed, then
+launches training.
+
+Cloud/platform mode assumes the dataset and weights are mounted by the platform.
+With the default paths, `--repo-id input` means the LeRobot dataset is under
+`/data/input/`, the initial params are at `/data/checkpoint/params`, and outputs
+go to `/data/output`:
+
+```bash
+scripts/cloud_train_entrypoint_portable.sh \
+  --repo-id input \
+  --exp my_task \
+  --prompt "perform the configured task" \
+  --max-frames 100000
+```
+
+Local/custom-path mode passes the dataset root and weight path explicitly:
+
+```bash
+scripts/cloud_train_entrypoint_portable.sh \
+  --data-dir /path/to/datasets \
+  --repo-id my_dataset \
+  --weight /path/to/checkpoint/params \
+  --output-dir /path/to/output \
+  --exp my_task \
+  --prompt "perform the configured task" \
+  --max-frames 100000
+```
+
+You can also run the portable entrypoint with an edited task YAML. In that mode,
+the YAML controls `repo_id`, `weight_loader`, `assets_base_dir`, and
+`checkpoint_base_dir`; `--data-dir` still sets `HF_LEROBOT_HOME`:
 
 ```bash
 scripts/cloud_train_entrypoint_portable.sh \

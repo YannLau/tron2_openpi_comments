@@ -310,8 +310,37 @@ uv run scripts/train_tron2_task.py \
   --task-config configs/train/tron2_tasks/my_task.yaml
 ```
 
-如需一条命令完成“先计算 norm、再训练”的本地或容器流程，可以使用公开的一站式入口。
-除非传入 `--skip-norm`，它会先运行 norm 计算，再启动训练：
+如需一条命令完成训练，可以使用 `scripts/cloud_train_entrypoint_portable.sh`。
+除非传入 `--skip-norm`，它会先计算 norm，再启动训练。
+
+云端/平台挂载模式假设数据和权重由平台挂载。按默认路径，`--repo-id input` 表示
+LeRobot 数据集位于 `/data/input/`，初始权重位于 `/data/checkpoint/params`，输出写到
+`/data/output`：
+
+```bash
+scripts/cloud_train_entrypoint_portable.sh \
+  --repo-id input \
+  --exp my_task \
+  --prompt "perform the configured task" \
+  --max-frames 100000
+```
+
+本地/自定义路径模式显式传入数据集根目录和权重路径：
+
+```bash
+scripts/cloud_train_entrypoint_portable.sh \
+  --data-dir /path/to/datasets \
+  --repo-id my_dataset \
+  --weight /path/to/checkpoint/params \
+  --output-dir /path/to/output \
+  --exp my_task \
+  --prompt "perform the configured task" \
+  --max-frames 100000
+```
+
+也可以让一站式入口使用已经编辑好的任务 YAML。此模式下，YAML 控制 `repo_id`、
+`weight_loader`、`assets_base_dir` 和 `checkpoint_base_dir`；`--data-dir` 仍用于设置
+`HF_LEROBOT_HOME`：
 
 ```bash
 scripts/cloud_train_entrypoint_portable.sh \

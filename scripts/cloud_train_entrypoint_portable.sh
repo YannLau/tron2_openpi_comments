@@ -4,7 +4,7 @@
 set -Eeuo pipefail
 
 PROJECT_DIR="${OPENPI_PROJECT_DIR:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)}"
-DATA_DIR="${DATA_DIR:-${HF_LEROBOT_HOME:-/data/input}}"
+DATA_DIR="${DATA_DIR:-${HF_LEROBOT_HOME:-/data}}"
 WEIGHT_PATH="${WEIGHT_PATH:-/data/checkpoint/params}"
 OUTPUT_DIR="${OUTPUT_DIR:-/data/output}"
 
@@ -35,7 +35,7 @@ Usage:
   scripts/cloud_train_entrypoint_portable.sh --task-config FILE [--exp NAME] [options]
 
 Default platform paths:
-  dataset root:  --data-dir, DATA_DIR, or HF_LEROBOT_HOME; fallback /data/input
+  dataset root:  --data-dir, DATA_DIR, or HF_LEROBOT_HOME; fallback /data
   model params:  /data/checkpoint/params
   output root:   /data/output
 
@@ -63,12 +63,17 @@ Options:
   --dry-run             Validate inputs and print commands without training
   -h, --help            Show this help
 
-Example matching a platform that stores LeRobot datasets under /path/to/datasets:
+Cloud/platform mount example:
   scripts/cloud_train_entrypoint_portable.sh \
-    --data-dir /path/to/datasets --repo-id my_dataset --exp example \
-    --weight /models/openpi-assets/checkpoints/pi_base/params \
-    --steps 30000 --rtc-delay 10 --action-horizon 30 \
-    --batch-size 64 --prompt-from-task --max-frames 100000
+    --repo-id input --exp example \
+    --prompt "perform the configured task" \
+    --steps 30000 --rtc-delay 10 --action-horizon 30 --max-frames 100000
+
+Local custom paths example:
+  scripts/cloud_train_entrypoint_portable.sh \
+    --data-dir /path/to/datasets --repo-id my_dataset \
+    --weight /path/to/checkpoint/params --output-dir /path/to/output \
+    --exp example --prompt "perform the configured task" --max-frames 100000
 EOF
 }
 
