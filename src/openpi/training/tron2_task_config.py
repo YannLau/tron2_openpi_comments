@@ -32,6 +32,7 @@ class Tron2TaskConfig:
     cam_right_wrist_key: str = "observation.images.cam_right_wrist"
     state_key: str = "observation.state"
     action_key: str = "action"
+    prompt_from_task: bool = False
     adapt_to_pi: bool = False
     use_delta_joint_actions: bool = False
     rtc_training_simulated_delay: int | None = None
@@ -82,6 +83,7 @@ def create_train_config(path: str | pathlib.Path, *, exp_name: str | None = None
         data=_config.LeRobotTronDataConfig(
             repo_id=task.repo_id,
             default_prompt=task.prompt,
+            base_config=_config.DataConfig(prompt_from_task=task.prompt_from_task),
             use_delta_joint_actions=task.use_delta_joint_actions,
             adapt_to_pi=task.adapt_to_pi,
             state_dim=task.state_dim,

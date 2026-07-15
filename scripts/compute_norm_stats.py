@@ -13,6 +13,7 @@ import openpi.models.model as _model
 import openpi.shared.normalize as normalize
 import openpi.training.config as _config
 import openpi.training.data_loader as _data_loader
+import openpi.training.tron2_task_config as tron2_task_config
 import openpi.transforms as transforms
 
 
@@ -86,8 +87,17 @@ def create_rlds_dataloader(
     return data_loader, num_batches
 
 
-def main(config_name: str, max_frames: int | None = None):
-    config = _config.get_config(config_name)
+def resolve_config(config_name: str | None, task_config: str | None) -> _config.TrainConfig:
+    if (config_name is None) == (task_config is None):
+        raise ValueError("Specify exactly one of --config-name or --task-config.")
+    if task_config is not None:
+        return tron2_task_config.create_train_config(task_config)
+    assert config_name is not None
+    return _config.get_config(config_name)
+
+
+def main(config_name: str | None = None, task_config: str | None = None, max_frames: int | None = None):
+    config = resolve_config(config_name, task_config)
     data_config = config.data.create(config.assets_dirs, config.model)
 
     if data_config.rlds_data_dir is not None:
