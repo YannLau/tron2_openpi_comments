@@ -18,9 +18,9 @@ deployment profiles.
 - TRON2 policy input/output transforms in `src/openpi/policies/tron2_policy.py`.
 - TRON2 training/deployment config registrations in `src/openpi/training/config.py`.
 - TRON2 robot clients in `examples/tron2/`.
-- Public deployment templates in `config/`.
+- Public deployment templates in `configs/deploy/`.
 - YAML-driven TRON2 task training via `scripts/train_tron2_task.py` and
-  `configs/tron2_tasks/example.yaml`.
+  `configs/train/tron2_tasks/example.yaml`.
 - Optional bridge observation mode for images and state from TRON2 Bridge.
 - Optional legacy RealSense observation mode for directly attached cameras.
 - RTC deployment client with warmup, observation-timeout recovery, queue
@@ -32,27 +32,29 @@ deployment profiles.
 - Model weights and checkpoint directories.
 - Training datasets, evaluation datasets, logs, or benchmark results.
 - Private `.local.yaml` deployment files.
-- Real robot IP addresses, camera serial numbers, internal URLs, or credentials.
+- Credentials, real camera serial numbers, customer data, or private local
+  deployment profiles.
 - The undeveloped low-level robot transport.
 - A safety certification for unattended robot operation.
 
 ## Repository Layout
 
 ```text
-tron2-vla-open/
+parent-directory/
 ├── tron2_openpi/
-│   ├── config/
-│   │   ├── tron2_deploy.example.yaml
-│   │   └── tron2_deploy.example_CN.yaml
 │   ├── configs/
-│   │   └── tron2_tasks/
-│   │       └── example.yaml
+│   │   ├── deploy/
+│   │   │   ├── candy.yaml
+│   │   │   ├── tron2_deploy.example.yaml
+│   │   │   └── tron2_deploy.example_CN.yaml
+│   │   └── train/
+│   │       └── tron2_tasks/
+│   │           └── example.yaml
 │   ├── examples/
 │   │   └── tron2/
 │   │       ├── deploy_config.py
 │   │       ├── pi_client.py
-│   │       ├── pi_client_rtc.py
-│   │       └── replay_data.py
+│   │       └── pi_client_rtc.py
 │   ├── packages/
 │   │   └── openpi-client/
 │   ├── scripts/
@@ -65,6 +67,7 @@ tron2-vla-open/
 
 Keep `tron2_openpi/` and `tron2_env/` side by side. The TRON2 client adds the
 sibling `../tron2_env/src` path at startup so it can import the runtime package.
+Recorded-action replay utilities live in `../tron2_env/examples/replay_data.py`.
 
 ## Requirements
 
@@ -85,14 +88,18 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 ## Environment Setup
 
-From the bundle root:
+Clone this repository and the independent TRON2 runtime repository as siblings:
 
 ```bash
-cd tron2_env
-python -m pip install -e ".[bridge,openpi]"
+git clone https://github.com/limx-tron2/tron2_openpi.git
+git clone https://github.com/limx-tron2/tron2_env.git
 
-cd ../tron2_openpi
+cd tron2_openpi
 uv sync
+uv pip install -e .
+
+cd ../tron2_env
+python -m pip install -e ".[bridge,openpi]"
 ```
 
 Verify that the sibling runtime can be imported:
@@ -107,13 +114,19 @@ The printed path should point to `../tron2_env/src/tron2_env/__init__.py`.
 
 Use the public templates as starting points:
 
-- English template: `config/tron2_deploy.example.yaml`
-- Chinese template: `config/tron2_deploy.example_CN.yaml`
+- Public Candy task example: `configs/deploy/candy.yaml`
+- English template: `configs/deploy/tron2_deploy.example.yaml`
+- Chinese template: `configs/deploy/tron2_deploy.example_CN.yaml`
+
+`configs/deploy/candy.yaml` is a public example profile for the Candy task. It may
+include robot LAN IP addresses and task-specific example values. Before running
+it on your own robot, verify the checkpoint path, robot address, Bridge address,
+initial pose, and safety procedures for your deployment.
 
 Create a private local profile and edit only the local file:
 
 ```bash
-cp config/tron2_deploy.example.yaml config/tron2_deploy.local.yaml
+cp configs/deploy/tron2_deploy.example.yaml configs/deploy/tron2_deploy.local.yaml
 ```
 
 Do not commit `.local.yaml` files. They are for private paths, robot addresses,
@@ -222,21 +235,26 @@ Start the policy server:
 
 ```bash
 uv run scripts/serve_policy.py \
-  --deploy-config=config/tron2_deploy.local.yaml
+  --deploy-config configs/deploy/tron2_deploy.local.yaml
 ```
 
 Start the TRON2 client in another terminal:
 
+**Note: the robot should be in the initial state after L1+X, then switched to
+advanced developer mode. After the client starts, the robot will spread both
+arms sideways and then move them forward. If the robot is not in the initial
+state, it may lift both arms directly; keep the front workspace clear.**
+
 ```bash
 uv run python examples/tron2/pi_client.py \
-  --deploy-config=config/tron2_deploy.local.yaml
+  --deploy-config configs/deploy/tron2_deploy.local.yaml
 ```
 
 Override the prompt for one run:
 
 ```bash
 uv run python examples/tron2/pi_client.py \
-  --deploy-config=config/tron2_deploy.local.yaml \
+  --deploy-config configs/deploy/tron2_deploy.local.yaml \
   --prompt="put the object into the drawer"
 ```
 
@@ -266,7 +284,7 @@ Then run:
 
 ```bash
 uv run python examples/tron2/pi_client_rtc.py \
-  --deploy-config=config/tron2_deploy.local.yaml
+  --deploy-config configs/deploy/tron2_deploy.local.yaml
 ```
 
 The RTC client warms up the model, seeds the action queue, retries short
@@ -280,12 +298,12 @@ For public task configs, prefer the YAML entry point instead of editing
 `src/openpi/training/config.py`:
 
 ```bash
-cp configs/tron2_tasks/example.yaml configs/tron2_tasks/my_task.yaml
-uv run scripts/train_tron2_task.py configs/tron2_tasks/my_task.yaml
+cp configs/train/tron2_tasks/example.yaml configs/train/tron2_tasks/my_task.yaml
+uv run scripts/train_tron2_task.py configs/train/tron2_tasks/my_task.yaml
 ```
 
 Real task YAML files are ignored by `.gitignore`; keep only
-`configs/tron2_tasks/example.yaml` in the public repository. The template
+`configs/train/tron2_tasks/example.yaml` in the public repository. The template
 supports `repo_id`, prompt, dataset column keys, `action_horizon`, `state_dim`,
 base checkpoint weights, output directories, and optional
 `rtc_training_simulated_delay`.

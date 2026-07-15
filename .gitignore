@@ -7,10 +7,10 @@ data/
 wandb/
 datasets/
 /third_party/
-config/*.local.yaml
-config/*_local.yaml
-configs/tron2_tasks/*.yaml
-!configs/tron2_tasks/example.yaml
+configs/deploy/*.local.yaml
+configs/deploy/*_local.yaml
+configs/train/tron2_tasks/*.yaml
+!configs/train/tron2_tasks/example.yaml
 debug_images/
 policy_records/
 

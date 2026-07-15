@@ -1,8 +1,8 @@
 # TRON2 training task configuration template.
-# Copy this file to configs/tron2_tasks/<task>.yaml and adjust values.
+# Copy this file to configs/train/tron2_tasks/<task>.yaml and adjust values.
 #
 # Usage:
-#   uv run scripts/train_tron2_task.py configs/tron2_tasks/<task>.yaml
+#   uv run scripts/train_tron2_task.py configs/train/tron2_tasks/<task>.yaml
 
 # Unique config name. Used as the checkpoint subdirectory name.
 name: pi05_tron2_example
@@ -12,6 +12,9 @@ repo_id: example_dataset
 
 # Natural language task instruction.
 prompt: Pick up the object and place it on the target
+
+# Use each LeRobot episode's task text instead of the fallback prompt above.
+prompt_from_task: false
 
 # Path to pretrained weights, for example the pi0.5 base params or a prior checkpoint.
 weight_loader: gs://openpi-assets/checkpoints/pi05_base/params
