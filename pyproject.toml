@@ -8,6 +8,7 @@ license = { file = "LICENSE" }
 dependencies = [
     "augmax>=0.3.4",
     "dm-tree>=0.1.8",
+    "datasets>=2.16,<3",
     "einops>=0.8.0",
     "equinox>=0.11.8",
     "flatbuffers>=24.3.25",
@@ -20,7 +21,7 @@ dependencies = [
     "jaxtyping==0.2.36",
     # Optional for deployment-only installs: keep lerobot disabled to avoid
     # pulling av/FFmpeg unless dataset conversion or training utilities need it.
-    # "lerobot",
+    "lerobot",
     "ml_collections==1.0.0",
     "numpy>=1.22.4,<2.0.0",
     "numpydantic>=1.6.6",
@@ -65,7 +66,7 @@ override-dependencies = ["ml-dtypes==0.4.1", "tensorstore==0.1.74"]
 [tool.uv.sources]
 openpi-client = { workspace = true }
 # Optional source for the commented lerobot dependency above.
-# lerobot = { git = "https://github.com/huggingface/lerobot", rev = "0cf864870cf29f4738d3ade893e6fd13fbd7cdb5" }
+lerobot = { git = "https://github.com/huggingface/lerobot", rev = "0cf864870cf29f4738d3ade893e6fd13fbd7cdb5" }
 dlimp = { git = "https://github.com/kvablack/dlimp", rev = "ad72ce3a9b414db2185bc0b38461d4101a65477a" }
 
 [tool.uv.workspace]
