@@ -53,6 +53,8 @@ transform、部署配置模板和 TRON2 真机客户端示例。
 │   ├── packages/
 │   │   └── openpi-client/
 │   ├── scripts/
+│   │   ├── cloud_train_entrypoint_portable.sh
+│   │   ├── compute_norm_stats.py
 │   │   ├── serve_policy.py
 │   │   └── train_tron2_task.py
 │   └── src/
@@ -284,13 +286,45 @@ RTC client 会先 warmup 模型并填充 action queue；运行中会在短暂观
 
 ```bash
 cp configs/train/tron2_tasks/example.yaml configs/train/tron2_tasks/my_task.yaml
-uv run scripts/train_tron2_task.py configs/train/tron2_tasks/my_task.yaml
+```
+
+修改 `configs/train/tron2_tasks/my_task.yaml` 后，先把 LeRobot 数据集根目录指向你
+自己的数据集目录。如果 `repo_id: my_dataset`，通常需要存在
+`$HF_LEROBOT_HOME/my_dataset/data/` 和 `$HF_LEROBOT_HOME/my_dataset/meta/`：
+
+```bash
+export HF_LEROBOT_HOME=/path/to/datasets
+```
+
+首次训练前先计算 normalization statistics：
+
+```bash
+uv run scripts/compute_norm_stats.py \
+  --task-config configs/train/tron2_tasks/my_task.yaml
+```
+
+然后启动训练：
+
+```bash
+uv run scripts/train_tron2_task.py \
+  --task-config configs/train/tron2_tasks/my_task.yaml
+```
+
+如需一条命令完成“先计算 norm、再训练”的本地或容器流程，可以使用公开的一站式入口。
+除非传入 `--skip-norm`，它会先运行 norm 计算，再启动训练：
+
+```bash
+scripts/cloud_train_entrypoint_portable.sh \
+  --task-config configs/train/tron2_tasks/my_task.yaml \
+  --exp my_task \
+  --data-dir "$HF_LEROBOT_HOME" \
+  --max-frames 100000
 ```
 
 真实任务 YAML 已被 `.gitignore` 忽略；公开仓库只保留
 `configs/train/tron2_tasks/example.yaml`。模板支持 `repo_id`、prompt、数据列名、
 `action_horizon`、`state_dim`、base checkpoint 权重、输出路径，以及可选的
-`rtc_training_simulated_delay`。
+`prompt_from_task` 和 `rtc_training_simulated_delay`。
 
 ## 调试输出
 
