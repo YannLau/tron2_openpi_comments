@@ -144,7 +144,7 @@ def test_public_issue_surfaces_route_suspected_vulnerabilities_privately(relativ
 
 @pytest.mark.parametrize(
     "relative_path",
-    ("README.md", "docs/remote_inference.md", "config/tron2_deploy.example.yaml"),
+    ("README.md", "docs/remote_inference.md", "configs/deploy/tron2_deploy.example.yaml"),
 )
 def test_english_runtime_docs_define_the_network_deployment_boundary(relative_path: str):
     content = _read_repository_file(relative_path)
@@ -167,7 +167,7 @@ def test_english_runtime_docs_define_the_network_deployment_boundary(relative_pa
 
 @pytest.mark.parametrize(
     "relative_path",
-    ("README_CN.md", "config/tron2_deploy.example_CN.yaml"),
+    ("README_CN.md", "configs/deploy/tron2_deploy.example_CN.yaml"),
 )
 def test_chinese_runtime_docs_define_the_network_deployment_boundary(relative_path: str):
     content = _read_repository_file(relative_path)
@@ -193,8 +193,8 @@ def test_chinese_runtime_docs_define_the_network_deployment_boundary(relative_pa
     (
         ("README.md", ("source disclosure", "functional safety", "real-robot certification")),
         ("README_CN.md", ("源码公开", "功能安全", "真机认证")),
-        ("config/tron2_deploy.example.yaml", ("source disclosure", "functional safety", "real-robot certification")),
-        ("config/tron2_deploy.example_CN.yaml", ("源码公开", "功能安全", "真机认证")),
+        ("configs/deploy/tron2_deploy.example.yaml", ("source disclosure", "functional safety", "real-robot certification")),
+        ("configs/deploy/tron2_deploy.example_CN.yaml", ("源码公开", "功能安全", "真机认证")),
     ),
 )
 def test_source_disclosure_is_not_described_as_safety_certification(relative_path: str, terms: tuple[str, ...]):
@@ -224,6 +224,8 @@ def test_tracked_markdown_has_no_stale_submodule_instructions():
     ).stdout.splitlines()
 
     for relative_path in tracked_docs:
+        if not (REPOSITORY_ROOT / relative_path).exists():
+            continue
         normalized = _read_repository_file(relative_path).lower()
         assert "git submodule" not in normalized
         assert "recurse-submodules" not in normalized
@@ -389,7 +391,10 @@ def _tracked_text_contains_concrete_home_path() -> bool:
     for encoded_path in tracked_paths:
         if not encoded_path:
             continue
-        content = (REPOSITORY_ROOT / encoded_path.decode()).read_bytes()
+        path = REPOSITORY_ROOT / encoded_path.decode()
+        if not path.exists():
+            continue
+        content = path.read_bytes()
         if b"\0" in content:
             continue
         for match in home_path.finditer(content):

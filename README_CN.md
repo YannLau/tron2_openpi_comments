@@ -15,8 +15,8 @@ transform、部署配置模板和 TRON2 真机客户端示例。
 - `src/openpi/policies/tron2_policy.py` 中的 TRON2 policy 输入/输出转换。
 - `src/openpi/training/config.py` 中的 TRON2 训练/部署配置注册。
 - `examples/tron2/` 中的 TRON2 真机客户端。
-- `config/` 中的公开部署配置模板。
-- 通过 `scripts/train_tron2_task.py` 和 `configs/tron2_tasks/example.yaml`
+- `configs/deploy/` 中的公开部署配置模板。
+- 通过 `scripts/train_tron2_task.py` 和 `configs/train/tron2_tasks/example.yaml`
   使用 YAML 配置新的 TRON2 训练任务。
 - 可选的 Bridge 观测模式：从 TRON2 Bridge 获取图像和状态。
 - 可选的 legacy RealSense 观测模式：使用本机直连相机。
@@ -28,27 +28,28 @@ transform、部署配置模板和 TRON2 真机客户端示例。
 - 模型权重和 checkpoint 目录。
 - 训练数据集、评测数据集、日志或 benchmark 结果。
 - 私有 `.local.yaml` 部署文件。
-- 真实机器人 IP、相机序列号、内部 URL 或凭据。
+- 凭据、真实相机序列号、客户数据或私有本地部署配置。
 - 尚未开发完成的 low-level 机器人 transport。
 - 无人值守真机运行的安全认证。
 
 ## 目录结构
 
 ```text
-tron2-vla-open/
+同级目录/
 ├── tron2_openpi/
-│   ├── config/
-│   │   ├── tron2_deploy.example.yaml
-│   │   └── tron2_deploy.example_CN.yaml
 │   ├── configs/
-│   │   └── tron2_tasks/
-│   │       └── example.yaml
+│   │   ├── deploy/
+│   │   │   ├── candy.yaml
+│   │   │   ├── tron2_deploy.example.yaml
+│   │   │   └── tron2_deploy.example_CN.yaml
+│   │   └── train/
+│   │       └── tron2_tasks/
+│   │           └── example.yaml
 │   ├── examples/
 │   │   └── tron2/
 │   │       ├── deploy_config.py
 │   │       ├── pi_client.py
-│   │       ├── pi_client_rtc.py
-│   │       └── replay_data.py
+│   │       └── pi_client_rtc.py
 │   ├── packages/
 │   │   └── openpi-client/
 │   ├── scripts/
@@ -61,6 +62,7 @@ tron2-vla-open/
 
 请保持 `tron2_openpi/` 和 `tron2_env/` 两个目录同级。TRON2 客户端启动时会把
 同级 `../tron2_env/src` 加入 `sys.path`，因此可以直接导入运行时包。
+录制动作回放工具位于 `../tron2_env/examples/replay_data.py`。
 
 ## 环境要求
 
@@ -80,14 +82,18 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 ## 环境安装
 
-从开源包根目录进入本仓库：
+将本仓库和独立的 TRON2 运行时仓库 clone 到同级目录，然后安装环境：
 
 ```bash
-cd tron2_env
-python -m pip install -e ".[bridge,openpi]"
+git clone https://github.com/limx-tron2/tron2_openpi.git
+git clone https://github.com/limx-tron2/tron2_env.git
 
-cd ../tron2_openpi
+cd tron2_openpi
 uv sync
+uv pip install -e .
+
+cd ../tron2_env
+python -m pip install -e ".[bridge,openpi]"
 ```
 
 验证同级运行时能被导入：
@@ -102,13 +108,16 @@ PYTHONPATH="$(cd ../tron2_env/src && pwd)" uv run python -c "import tron2_env; p
 
 请从公开模板开始：
 
-- 英文模板：`config/tron2_deploy.example.yaml`
-- 中文模板：`config/tron2_deploy.example_CN.yaml`
+- Candy 任务公开示例：`configs/deploy/candy.yaml`
+- 英文模板：`configs/deploy/tron2_deploy.example.yaml`
+- 中文模板：`configs/deploy/tron2_deploy.example_CN.yaml`
+
+`configs/deploy/candy.yaml` 是 Candy 任务的公开示例配置，可以包含机器人局域网 IP 和任务相关示例值。用于你自己的机器人前，请确认 checkpoint 路径、机器人地址、Bridge 地址、初始化姿态和安全流程都适用于当前部署。
 
 复制一份本地私有配置，并只修改 local 文件：
 
 ```bash
-cp config/tron2_deploy.example_CN.yaml config/tron2_deploy.local.yaml
+cp configs/deploy/tron2_deploy.example_CN.yaml configs/deploy/tron2_deploy.local.yaml
 ```
 
 不要提交 `.local.yaml` 文件。这类文件用于保存私有路径、机器人地址、Bridge 地址和相机序列号。
@@ -216,21 +225,23 @@ TRON2 policy 期望的图像 key 为：
 
 ```bash
 uv run scripts/serve_policy.py \
-  --deploy-config=config/tron2_deploy.local.yaml
+  --deploy-config configs/deploy/tron2_deploy.local.yaml
 ```
 
 在另一个终端启动 TRON2 客户端：
 
+**注意：机器人需处于L1+X后的初始状态，然后切换到高级开发者模式，运行客户端后机器人会侧展双臂，然后前伸，若非初始状态可能会直接抬起双臂，警惕前方物体风险！！！**
+
 ```bash
 uv run python examples/tron2/pi_client.py \
-  --deploy-config=config/tron2_deploy.local.yaml
+  --deploy-config configs/deploy/tron2_deploy.local.yaml
 ```
 
 临时覆盖任务指令：
 
 ```bash
 uv run python examples/tron2/pi_client.py \
-  --deploy-config=config/tron2_deploy.local.yaml \
+  --deploy-config configs/deploy/tron2_deploy.local.yaml \
   --prompt="put the object into the drawer"
 ```
 
@@ -260,7 +271,7 @@ client:
 
 ```bash
 uv run python examples/tron2/pi_client_rtc.py \
-  --deploy-config=config/tron2_deploy.local.yaml
+  --deploy-config configs/deploy/tron2_deploy.local.yaml
 ```
 
 RTC client 会先 warmup 模型并填充 action queue；运行中会在短暂观测超时时等待新鲜
@@ -272,12 +283,12 @@ RTC client 会先 warmup 模型并填充 action queue；运行中会在短暂观
 公开任务配置建议使用 YAML 入口，而不是直接改 `src/openpi/training/config.py`：
 
 ```bash
-cp configs/tron2_tasks/example.yaml configs/tron2_tasks/my_task.yaml
-uv run scripts/train_tron2_task.py configs/tron2_tasks/my_task.yaml
+cp configs/train/tron2_tasks/example.yaml configs/train/tron2_tasks/my_task.yaml
+uv run scripts/train_tron2_task.py configs/train/tron2_tasks/my_task.yaml
 ```
 
 真实任务 YAML 已被 `.gitignore` 忽略；公开仓库只保留
-`configs/tron2_tasks/example.yaml`。模板支持 `repo_id`、prompt、数据列名、
+`configs/train/tron2_tasks/example.yaml`。模板支持 `repo_id`、prompt、数据列名、
 `action_horizon`、`state_dim`、base checkpoint 权重、输出路径，以及可选的
 `rtc_training_simulated_delay`。
 
