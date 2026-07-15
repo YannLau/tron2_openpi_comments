@@ -93,9 +93,7 @@ git clone https://github.com/limx-tron2/tron2_env.git
 cd tron2_openpi
 uv sync
 uv pip install -e .
-
-cd ../tron2_env
-python -m pip install -e ".[bridge,openpi]"
+uv pip install -e "../tron2_env[bridge,openpi]"
 ```
 
 验证同级运行时能被导入：
