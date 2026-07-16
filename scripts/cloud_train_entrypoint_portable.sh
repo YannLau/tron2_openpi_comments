@@ -27,6 +27,23 @@ OVERWRITE=false
 USE_WANDB=false
 DRY_RUN=false
 GENERATED_TASK_CONFIG=false
+ORIGINAL_ARGS=("$@")
+
+timestamp() {
+  date '+%Y-%m-%d %H:%M:%S'
+}
+
+log() {
+  printf '[%s] %s\n' "$(timestamp)" "$*"
+}
+
+log_error() {
+  printf '[%s] ERROR: %s\n' "$(timestamp)" "$*" >&2
+}
+
+quote_args() {
+  printf '%q ' "$@"
+}
 
 usage() {
   cat <<'EOF'
@@ -63,6 +80,9 @@ Options:
   --dry-run             Validate inputs and print commands without training
   -h, --help            Show this help
 
+Environment:
+  OPENPI_AUTO_INSTALL_UV=0 disables the runtime uv install fallback.
+
 Cloud/platform mount example:
   scripts/cloud_train_entrypoint_portable.sh \
     --repo-id input --exp example \
@@ -78,8 +98,16 @@ EOF
 }
 
 die() {
-  printf 'Error: %s\n' "$*" >&2
+  log_error "$*"
   exit 1
+}
+
+on_error() {
+  local exit_code="$1"
+  local line_no="$2"
+  local command="$3"
+  [ "$exit_code" -eq 0 ] && return
+  log_error "command failed at line ${line_no} with exit code ${exit_code}: ${command}"
 }
 
 require_value() {
@@ -114,6 +142,88 @@ cleanup() {
   fi
 }
 trap cleanup EXIT
+trap 'on_error "$?" "$LINENO" "$BASH_COMMAND"' ERR
+
+setup_runtime_path() {
+  local home_dir="${HOME:-/root}"
+  export PATH="/usr/local/bin:${home_dir}/.local/bin:/root/.local/bin:${PATH:-}"
+}
+
+log_runtime_context() {
+  log "Invoked command: $0 $(quote_args "${ORIGINAL_ARGS[@]}")"
+  log "Current user: $(id -un 2>/dev/null || printf unknown) uid=$(id -u 2>/dev/null || printf unknown) gid=$(id -g 2>/dev/null || printf unknown)"
+  log "Initial working directory: $(pwd)"
+  log "Runtime PATH: ${PATH}"
+  log "Python candidate: $(command -v python3 2>/dev/null || command -v python 2>/dev/null || printf '<not found>')"
+}
+
+ensure_uv() {
+  if command -v uv >/dev/null 2>&1; then
+    local uv_path
+    local uv_version
+    uv_path="$(command -v uv)"
+    uv_version="$(uv --version 2>&1)" || die "uv exists at ${uv_path}, but 'uv --version' failed: ${uv_version}"
+    log "Found uv: ${uv_path}"
+    log "uv version: ${uv_version}"
+    return
+  fi
+
+  log "uv was not found on PATH; checking common install locations..."
+  local candidate
+  for candidate in \
+    "/usr/local/bin/uv" \
+    "${HOME:-/root}/.local/bin/uv" \
+    "/root/.local/bin/uv"
+  do
+    if [ -x "$candidate" ]; then
+      export PATH="$(dirname "$candidate"):$PATH"
+      log "Found uv outside PATH: ${candidate}; updated PATH."
+      local uv_version
+      uv_version="$(uv --version 2>&1)" || die "uv exists at ${candidate}, but 'uv --version' failed: ${uv_version}"
+      log "uv version: ${uv_version}"
+      log "Runtime PATH after uv discovery: ${PATH}"
+      return
+    fi
+  done
+
+  if [ "${OPENPI_AUTO_INSTALL_UV:-1}" = "0" ]; then
+    die "uv is not available and OPENPI_AUTO_INSTALL_UV=0; install uv into /usr/local/bin or add it to PATH before starting the job"
+  fi
+
+  command -v curl >/dev/null 2>&1 || die "uv is not available and curl is not installed; cannot run runtime uv install fallback"
+
+  log "uv is not available; attempting runtime install to /usr/local/bin..."
+  if curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh; then
+    setup_runtime_path
+  else
+    log "Runtime install to /usr/local/bin failed; attempting user-local install under ${HOME:-/root}/.local/bin..."
+    curl -LsSf https://astral.sh/uv/install.sh | sh || die "uv runtime install failed; rebuild the image with uv installed"
+    setup_runtime_path
+  fi
+
+  if ! command -v uv >/dev/null 2>&1; then
+    die "uv install fallback completed, but uv is still not on PATH: ${PATH}"
+  fi
+
+  local uv_path
+  local uv_version
+  uv_path="$(command -v uv)"
+  uv_version="$(uv --version 2>&1)" || die "uv was installed at ${uv_path}, but 'uv --version' failed: ${uv_version}"
+  log "Installed/found uv: ${uv_path}"
+  log "uv version: ${uv_version}"
+  log "Runtime PATH after uv setup: ${PATH}"
+}
+
+log_project_environment() {
+  if [ -d ".venv" ]; then
+    log "Project virtualenv found: ${PROJECT_DIR}/.venv"
+    if [ -x ".venv/bin/python" ]; then
+      log "Project venv Python: $(.venv/bin/python --version 2>&1)"
+    fi
+  else
+    log "Project virtualenv not found at ${PROJECT_DIR}/.venv; 'uv run' may create or sync it at runtime."
+  fi
+}
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -152,6 +262,12 @@ require_positive_integer --action-horizon "$ACTION_HORIZON"
 [ "$RESUME" = false ] || [ "$OVERWRITE" = false ] || die "--resume and --overwrite are mutually exclusive"
 
 cd "$PROJECT_DIR"
+setup_runtime_path
+log_runtime_context
+log "Project directory: ${PROJECT_DIR}"
+log "Dataset root: ${DATA_DIR}"
+log "Model params: ${WEIGHT_PATH}"
+log "Output root: ${OUTPUT_DIR}"
 mkdir -p "$OUTPUT_DIR/logs" || die "cannot create output directory: $OUTPUT_DIR"
 
 if [ -n "$TASK_CONFIG" ]; then
@@ -168,8 +284,10 @@ else
   esac
 
   DATASET_ROOT="$DATA_DIR/$REPO_ID"
+  log "Checking dataset directory: ${DATASET_ROOT}"
   [ -d "$DATASET_ROOT/data" ] || die "dataset data directory is missing: $DATASET_ROOT/data"
   [ -d "$DATASET_ROOT/meta" ] || die "dataset metadata directory is missing: $DATASET_ROOT/meta"
+  log "Checking model params: ${WEIGHT_PATH}"
   [ -r "$WEIGHT_PATH" ] || die "model params are not readable: $WEIGHT_PATH"
 
   NAME="${NAME_OVERRIDE:-pi05_tron2_${EXP_NAME%%_*}}"
@@ -187,6 +305,7 @@ else
   else
     die "python3 or python is required to generate the task config"
   fi
+  log "Using Python for task config generation: ${PYTHON_COMMAND[*]}"
 
   "${PYTHON_COMMAND[@]}" - \
     "$TASK_CONFIG" "$NAME" "$REPO_ID" "$PROMPT" "$WEIGHT_PATH" \
@@ -240,7 +359,13 @@ fi
 export HF_LEROBOT_HOME="$DATA_DIR"
 if [ "$USE_WANDB" = false ]; then
   export WANDB_MODE=disabled
+  log "Weights & Biases disabled: WANDB_MODE=disabled"
+else
+  log "Weights & Biases enabled by --wandb"
 fi
+
+ensure_uv
+log_project_environment
 
 NORM_COMMAND=(uv run scripts/compute_norm_stats.py --task-config "$TASK_CONFIG")
 [ -z "$MAX_FRAMES" ] || NORM_COMMAND+=(--max-frames "$MAX_FRAMES")
@@ -263,21 +388,25 @@ print_command 'Norm command:' "${NORM_COMMAND[@]}"
 print_command 'Train command:' "${TRAIN_COMMAND[@]}"
 
 if [ "$DRY_RUN" = true ]; then
-  printf 'Dry run complete; training was not started.\n'
+  log "Dry run complete; training was not started."
   exit 0
 fi
 
-command -v uv >/dev/null 2>&1 || die "uv is required; install dependencies before starting the job"
-
 LOG_FILE="$OUTPUT_DIR/logs/training_${EXP_NAME}_$(date +%Y%m%d_%H%M%S).log"
+log "Training log file: ${LOG_FILE}"
 if [ "$SKIP_NORM" = false ]; then
-  printf '[%s] Computing normalization statistics...\n' "$(date '+%H:%M:%S')" | tee -a "$LOG_FILE"
+  log "Computing normalization statistics..."
+  print_command 'Running norm command:' "${NORM_COMMAND[@]}" | tee -a "$LOG_FILE"
   "${NORM_COMMAND[@]}" 2>&1 | tee -a "$LOG_FILE"
+  log "Normalization statistics finished."
+else
+  log "Skipping normalization statistics because --skip-norm was provided."
 fi
 
-printf '[%s] Starting training...\n' "$(date '+%H:%M:%S')" | tee -a "$LOG_FILE"
+log "Starting training..."
+print_command 'Running train command:' "${TRAIN_COMMAND[@]}" | tee -a "$LOG_FILE"
 XLA_FLAGS="${XLA_FLAGS:---xla_gpu_enable_triton_gemm=false}" \
 XLA_PYTHON_CLIENT_MEM_FRACTION="${XLA_PYTHON_CLIENT_MEM_FRACTION:-0.9}" \
   "${TRAIN_COMMAND[@]}" 2>&1 | tee -a "$LOG_FILE"
 
-printf 'Training complete. Checkpoints: %s/<config-name>/%s/<step>/\n' "$OUTPUT_DIR" "$EXP_NAME"
+log "Training complete. Checkpoints: ${OUTPUT_DIR}/<config-name>/${EXP_NAME}/<step>/"
