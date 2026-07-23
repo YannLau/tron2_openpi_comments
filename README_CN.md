@@ -1,4 +1,4 @@
-# TRON2 OpenPI 部署仓库
+# TRON2 OpenPI 仓库
 
 [English](README.md)
 
@@ -91,6 +91,13 @@ git clone https://github.com/limx-tron2/tron2_openpi.git
 git clone https://github.com/limx-tron2/tron2_env.git
 
 cd tron2_openpi
+
+#如果安装av依赖失败，则运行下面的指令安装ffmpeg
+sudo apt install pkg-config
+sudo apt install software-properties-common -y
+sudo add-apt-repository ppa:ubuntuhandbook1/ffmpeg7 -y
+sudo apt install ffmpeg libavformat-dev libavcodec-dev libavdevice-dev libavutil-dev libswscale-dev libswresample-dev libavfilter-dev -y
+
 uv sync
 uv pip install -e .
 # 安装tron2_env包
