@@ -1,4 +1,4 @@
-# TRON2 OpenPI Deployment
+# TRON2 OpenPI
 
 [中文文档](README_CN.md)
 
@@ -97,6 +97,13 @@ git clone https://github.com/limx-tron2/tron2_openpi.git
 git clone https://github.com/limx-tron2/tron2_env.git
 
 cd tron2_openpi
+
+#using following if fail to install av
+sudo apt install pkg-config
+sudo apt install software-properties-common -y
+sudo add-apt-repository ppa:ubuntuhandbook1/ffmpeg7 -y
+sudo apt install ffmpeg libavformat-dev libavcodec-dev libavdevice-dev libavutil-dev libswscale-dev libswresample-dev libavfilter-dev -y
+
 uv sync
 uv pip install -e .
 # install tron2_env
