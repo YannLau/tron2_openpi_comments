@@ -5,22 +5,21 @@ from __future__ import annotations
 import argparse
 import time
 
-import numpy as np
-
-from openpi_client import websocket_client_policy
-
 from _external_tron2_env import ensure_external_tron2_env_on_path
-from deploy_config import build_env_config
+from deploy_config import PromptController
 from deploy_config import bool_value
+from deploy_config import build_env_config
 from deploy_config import format_obs
 from deploy_config import infer_with_timing
 from deploy_config import load_deploy_config
 from deploy_config import policy_host
 from deploy_config import policy_port
 from deploy_config import positive_int_or_none
-from deploy_config import PromptController
 from deploy_config import record_paths
 from deploy_config import section
+from deploy_config import select_profile_path
+import numpy as np
+from openpi_client import websocket_client_policy
 
 ensure_external_tron2_env_on_path()
 
@@ -29,7 +28,13 @@ from tron2_env import Tron2Env
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run TRON2 real-robot policy client.")
-    parser.add_argument("--deploy-config", type=str, default=None, help="Path to deployment YAML.")
+    parser.add_argument("--profile", type=str, default=None, help="Path to client deployment profile YAML.")
+    parser.add_argument(
+        "--deploy-config",
+        type=str,
+        default=None,
+        help="Deprecated alias for --profile.",
+    )
     parser.add_argument(
         "--prompt",
         type=str,
@@ -57,7 +62,8 @@ def _save_records(config_profile: dict, actions: list[np.ndarray], states: list[
 
 def main() -> None:
     args = _parse_args()
-    config_profile = load_deploy_config(args.deploy_config)
+    profile_path = select_profile_path(args.profile, args.deploy_config)
+    config_profile = load_deploy_config(profile_path)
     client_profile = section(config_profile, "client")
     if bool_value(client_profile.get("rtc_enabled", False)):
         raise ValueError(

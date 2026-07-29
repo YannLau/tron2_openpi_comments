@@ -1,0 +1,40 @@
+# 服务端部署 profile 模板。
+# 私有部署时复制到 configs/deploy/<任务名>_server.local.yaml；经过开源审核后
+# 作为公开任务示例发布时，可复制到 configs/deploy/<任务名>_server.yaml。
+#
+# 网络部署边界：
+# - 当前 policy、机器人控制和 Bridge 接口仅支持授权系统接入的受控机器人局域网。
+# - 不得暴露到互联网，也不得在不受信任或共享网络中使用。
+# - 当前传输并非都提供应用层鉴权或 TLS。
+# - 任何面向互联网、跨站点或云端的拓扑都必须在使用前单独进行安全评审。
+# - 源码公开不等于功能安全批准或真机认证。
+
+policy:
+  # 训练配置名称，需要和 src/openpi/training/config.py 中注册的 config 名称一致。
+  config: TASK_CONFIG_NAME
+
+  # 数据集或仓库 ID，主要用于加载 checkpoint 对应的 assets，例如归一化统计量。
+  repo_id: DATASET_REPO_ID
+
+  # 训练好的 checkpoint step 目录，可以写绝对路径，也可以写相对于项目根目录的路径。
+  checkpoint_dir: /path/to/checkpoints/TASK_CONFIG_NAME/experiment/step
+
+  # 默认任务指令。client 没有通过 --prompt 指定任务时，会使用这里的文本。
+  default_prompt: TASK_PROMPT
+
+  # 是否保存 policy 的原始输入和输出，通常只在调试时打开。
+  record: false
+
+  # 可选的推理覆盖项。保持 null/默认值时使用训练 config 中的设置。
+  action_horizon: null
+  state_dim: 16
+  use_delta_joint_actions: false
+
+server:
+  # policy server 监听地址。
+  # 0.0.0.0 表示允许同一台机器或同一网络中的 client 连接。
+  host: 0.0.0.0
+  port: 8000
+
+  # JAX 持久编译缓存由环境变量 OPENPI_JAX_CACHE_DIR 控制。
+  # 默认路径为 /tmp/openpi_jax_cache。

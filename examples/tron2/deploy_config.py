@@ -1,31 +1,33 @@
 """Public TRON2 deployment YAML helpers.
 
-This module keeps the example clients small and preserves one shared YAML
-schema for server, robot, camera, bridge, and client options.
+This module keeps the example clients small and reads the client-side deploy
+profile schema for robot, camera, bridge, and client options.
 """
 
 from __future__ import annotations
 
+from datetime import datetime
 import logging
 import math
+from pathlib import Path
 import sys
 import threading
 import time
-from datetime import datetime
-from pathlib import Path
 from typing import Any
 
+from _external_tron2_env import ensure_external_tron2_env_on_path
 import einops
 import numpy as np
-
-from openpi.shared import deploy_config as _deploy_config
 from openpi_client import image_tools
 
-from _external_tron2_env import ensure_external_tron2_env_on_path
+from openpi.shared import deploy_config as _deploy_config
 
 ensure_external_tron2_env_on_path()
 
-from tron2_env import BridgeConfig, CameraConfig, EnvConfig, Tron2Config
+from tron2_env import BridgeConfig
+from tron2_env import CameraConfig
+from tron2_env import EnvConfig
+from tron2_env import Tron2Config
 
 logger = logging.getLogger(__name__)
 
@@ -55,8 +57,20 @@ LEGACY_CAMERA_NAME_MAP = {
 
 
 def load_deploy_config(path: str | Path | None) -> dict[str, Any]:
-    """Load the public nested deploy YAML."""
+    """Load a public nested deploy profile YAML."""
     return _deploy_config.load_deploy_config(path)
+
+
+def load_deploy_profile(path: str | Path | None) -> dict[str, Any]:
+    """Alias for callers that use the newer profile terminology."""
+    return load_deploy_config(path)
+
+
+def select_profile_path(
+    profile: str | Path | None,
+    deploy_config: str | Path | None = None,
+) -> str | Path | None:
+    return _deploy_config.select_profile_path(profile, deploy_config)
 
 
 def section(config: dict[str, Any], name: str) -> dict[str, Any]:

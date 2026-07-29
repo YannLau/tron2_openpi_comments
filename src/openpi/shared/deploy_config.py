@@ -5,7 +5,6 @@ from typing import Any
 
 import yaml
 
-
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
@@ -19,6 +18,16 @@ def resolve_config_path(path: str | Path) -> Path:
         return cwd_path
 
     return REPO_ROOT / profile_path
+
+
+def select_profile_path(
+    profile: str | Path | None,
+    deploy_config: str | Path | None = None,
+) -> str | Path | None:
+    """Return the preferred deploy profile path while preserving the old flag."""
+    if profile is not None and deploy_config is not None:
+        raise ValueError("Use either --profile or --deploy-config, not both.")
+    return profile if profile is not None else deploy_config
 
 
 def load_deploy_config(path: str | Path | None) -> dict[str, Any]:

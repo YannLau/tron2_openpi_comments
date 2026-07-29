@@ -16,7 +16,6 @@ from openpi.serving import websocket_policy_server
 from openpi.shared import deploy_config as _deploy_config
 from openpi.training import config as _config
 
-
 _JAX_CACHE_DIR = os.environ.get("OPENPI_JAX_CACHE_DIR", "/tmp/openpi_jax_cache")
 if _JAX_CACHE_DIR:
     jax.config.update("jax_compilation_cache_dir", _JAX_CACHE_DIR)
@@ -52,7 +51,10 @@ class Default:
 class Args:
     """Arguments for the serve_policy script."""
 
-    # Optional YAML profile for local deployment values.
+    # Preferred YAML profile for local deployment values.
+    profile: str | None = None
+
+    # Deprecated alias for --profile.
     deploy_config: str | None = None
 
     # Environment to serve the policy for. This is only used when serving default policies.
@@ -289,7 +291,8 @@ def warmup_policy(policy: _policy.Policy, rtc_supported: bool) -> None:
 
 
 def main(args: Args) -> None:
-    config_profile = _deploy_config.load_deploy_config(args.deploy_config)
+    profile_path = _deploy_config.select_profile_path(args.profile, args.deploy_config)
+    config_profile = _deploy_config.load_deploy_config(profile_path)
     server_profile = _deploy_config.section(config_profile, "server")
     policy_profile = _deploy_config.section(config_profile, "policy")
 
