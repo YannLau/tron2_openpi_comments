@@ -1,0 +1,42 @@
+# Server-side deployment profile template.
+# Copy this file to configs/deploy/<task>_server.local.yaml for private
+# deployment, or to configs/deploy/<task>_server.yaml when publishing a
+# reviewed public task example.
+#
+# Network deployment boundary:
+# - Policy, robot-control, and Bridge interfaces are supported only for
+#   authorized systems on a controlled robot LAN.
+# - Do not expose them to the Internet or use them on an untrusted or shared network.
+# - Some runtime links may not provide application authentication or TLS.
+# - Any Internet-facing, cross-site, or cloud topology requires a separate
+#   security review before use.
+# - Source disclosure is not a functional safety approval or real-robot certification.
+
+policy:
+  # Training config name registered in src/openpi/training/config.py.
+  config: TASK_CONFIG_NAME
+
+  # Dataset/repo id used by the checkpoint assets, for example norm statistics.
+  repo_id: DATASET_REPO_ID
+
+  # Absolute path or repo-relative path to the trained checkpoint step directory.
+  checkpoint_dir: /path/to/checkpoints/TASK_CONFIG_NAME/experiment/step
+
+  # Default language instruction used when the client does not pass --prompt.
+  default_prompt: TASK_PROMPT
+
+  # Set true only when you want to save raw policy inputs/outputs for debugging.
+  record: false
+
+  # Optional inference overrides. Leave null to use the training config.
+  action_horizon: null
+  state_dim: 16
+  use_delta_joint_actions: false
+
+server:
+  # The server listens on 0.0.0.0 so clients on the same machine/network can connect.
+  host: 0.0.0.0
+  port: 8000
+
+  # JAX persistent compilation cache is controlled by OPENPI_JAX_CACHE_DIR.
+  # Default: /tmp/openpi_jax_cache
