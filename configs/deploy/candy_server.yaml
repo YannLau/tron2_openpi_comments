@@ -3,11 +3,11 @@ policy:
   config: pi05_tron2_Candy
 
   # Dataset/repo id used by the checkpoint assets, for example norm statistics.
-  repo_id: candy
+  repo_id: input
 
   # Trained checkpoint step directory.
   # Update this path after downloading the public Candy weights.
-  checkpoint_dir: /checkpoints/pi05_tron2_Candy/candy
+  checkpoint_dir: checkpoints/pi05_tron2_candy/candy_h30_rtc_25000
 
   # Default task instruction used when the client does not pass --prompt.
   default_prompt: Hand out the candy
