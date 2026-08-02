@@ -1,20 +1,20 @@
 import pathlib
 
+import pytest
+
 from openpi.training import tron2_task_config
 
 
 def _write_task(path: pathlib.Path, *, prompt_from_task: bool = False) -> None:
-    path.write_text(
-        "\n".join(
-            [
-                "name: pi05_tron2_test",
-                "repo_id: test_dataset",
-                "prompt: fallback prompt",
-                "weight_loader: /tmp/weights/params",
-                f"prompt_from_task: {str(prompt_from_task).lower()}",
-            ]
-        )
-    )
+    lines = [
+        "name: pi05_tron2_test",
+        "repo_id: test_dataset",
+        "weight_loader: /tmp/weights/params",
+        f"prompt_from_task: {str(prompt_from_task).lower()}",
+    ]
+    if not prompt_from_task:
+        lines.append("prompt: fixed prompt")
+    path.write_text("\n".join(lines))
 
 
 def test_load_task_supports_prompt_from_task(tmp_path: pathlib.Path):
@@ -23,6 +23,59 @@ def test_load_task_supports_prompt_from_task(tmp_path: pathlib.Path):
 
     task = tron2_task_config.load_task(task_path)
 
+    assert task.prompt_from_task is True
+
+
+def test_load_task_rejects_prompt_with_prompt_from_task(tmp_path: pathlib.Path):
+    task_path = tmp_path / "task.yaml"
+    task_path.write_text(
+        "\n".join(
+            [
+                "name: pi05_tron2_test",
+                "repo_id: test_dataset",
+                "prompt: ambiguous prompt",
+                "weight_loader: /tmp/weights/params",
+                "prompt_from_task: true",
+            ]
+        )
+    )
+
+    with pytest.raises(ValueError, match="prompt must not be set when prompt_from_task is true"):
+        tron2_task_config.load_task(task_path)
+
+
+def test_load_task_requires_prompt_without_prompt_from_task(tmp_path: pathlib.Path):
+    task_path = tmp_path / "task.yaml"
+    task_path.write_text(
+        "\n".join(
+            [
+                "name: pi05_tron2_test",
+                "repo_id: test_dataset",
+                "weight_loader: /tmp/weights/params",
+            ]
+        )
+    )
+
+    with pytest.raises(ValueError, match="prompt is required unless prompt_from_task is true"):
+        tron2_task_config.load_task(task_path)
+
+
+def test_load_task_allows_prompt_from_task_without_fallback_prompt(tmp_path: pathlib.Path):
+    task_path = tmp_path / "task.yaml"
+    task_path.write_text(
+        "\n".join(
+            [
+                "name: pi05_tron2_test",
+                "repo_id: test_dataset",
+                "weight_loader: /tmp/weights/params",
+                "prompt_from_task: true",
+            ]
+        )
+    )
+
+    task = tron2_task_config.load_task(task_path)
+
+    assert task.prompt is None
     assert task.prompt_from_task is True
 
 

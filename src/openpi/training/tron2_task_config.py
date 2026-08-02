@@ -18,7 +18,7 @@ import openpi.transforms as _transforms
 class Tron2TaskConfig:
     name: str
     repo_id: str
-    prompt: str
+    prompt: str | None = None
     weight_loader: str = "gs://openpi-assets/checkpoints/pi05_base/params"
     num_train_steps: int = 20_000
     save_interval: int = 1000
@@ -52,7 +52,12 @@ def load_task(path: str | pathlib.Path) -> Tron2TaskConfig:
     unknown = sorted(set(data) - allowed)
     if unknown:
         raise ValueError(f"Unknown TRON2 task fields in {path}: {', '.join(unknown)}")
-    return Tron2TaskConfig(**data)
+    task = Tron2TaskConfig(**data)
+    if task.prompt_from_task and task.prompt:
+        raise ValueError("prompt must not be set when prompt_from_task is true")
+    if not task.prompt_from_task and not task.prompt:
+        raise ValueError("prompt is required unless prompt_from_task is true")
+    return task
 
 
 def create_train_config(path: str | pathlib.Path, *, exp_name: str | None = None) -> _config.TrainConfig:
