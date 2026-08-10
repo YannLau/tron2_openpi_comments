@@ -31,6 +31,7 @@ dependencies = [
     "pillow>=11.0.0",
     "sentencepiece>=0.2.0",
     "torch==2.7.1",
+    "torchcodec==0.5",
     "tqdm-loggable>=0.2",
     "typing-extensions>=4.12.2",
     "tyro>=0.9.5",
@@ -52,7 +53,7 @@ dev = [
     "ipykernel>=6.29.5",
     "ipywidgets>=8.1.5",
     "matplotlib>=3.10.0",
-    "pynvml>=12.0.0",
+    "nvidia-ml-py>=12",
 ]
 rlds = [
     "dlimp",
