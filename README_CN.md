@@ -39,6 +39,7 @@ transform、部署配置模板和 TRON2 真机客户端示例。
 | 任务 | 用户文档 | 模型权重 | 公开部署 profile |
 | --- | --- | --- | --- |
 | Candy | [TRON2 OpenPI Candy 用户文档](https://cwjgfm21di.feishu.cn/wiki/DitfwjCRiiSWhBk3MTUcA14tnsh) | [limx-tron2-dev/tron2-openpi-models](https://huggingface.co/limx-tron2-dev/tron2-openpi-models) | `configs/deploy/candy_server.yaml`, `configs/deploy/candy_client.yaml` |
+| Cloth | [TRON2 OpenPI Cloth 用户文档](https://cwjgfm21di.feishu.cn/wiki/Bcw8wthgpiLrVWkHXk0cBfLOnnc) | [limx-tron2-dev/tron2-openpi-models](https://huggingface.co/limx-tron2-dev/tron2-openpi-models) | `configs/deploy/cloth_server.yaml`, `configs/deploy/cloth_client.yaml` |
 
 模型权重和 checkpoint 不存放在本仓库中。使用真机任务前，请先从表格中的模型仓库下载
 权重，并在对应任务 server profile 中填写实际 checkpoint 路径。
@@ -212,14 +213,14 @@ uv run scripts/serve_policy.py \
 如果 client profile 中 `client.rtc_enabled: false`，在另一个终端运行普通客户端：
 
 ```bash
-uv run python examples/tron2/pi_client.py \
+uv run examples/tron2/pi_client.py \
   --profile configs/deploy/my_task_client.local.yaml
 ```
 
 临时覆盖任务指令：
 
 ```bash
-uv run python examples/tron2/pi_client.py \
+uv run examples/tron2/pi_client.py \
   --profile configs/deploy/my_task_client.local.yaml \
   --prompt="put the object into the drawer"
 ```
@@ -249,7 +250,7 @@ client:
 然后运行：
 
 ```bash
-uv run python examples/tron2/pi_client_rtc.py \
+uv run examples/tron2/pi_client_rtc.py \
   --profile configs/deploy/candy_client.yaml
 ```
 
