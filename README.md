@@ -44,7 +44,8 @@ released.
 
 | Task | User guide | Model weights | Public deploy profiles |
 | --- | --- | --- | --- |
-| Candy | [TRON2 OpenPI Candy user guide](https://cwjgfm21di.feishu.cn/wiki/DitfwjCRiiSWhBk3MTUcA14tnsh) | [limx-tron2-dev/tron2-openpi-models](https://huggingface.co/limx-tron2-dev/tron2-openpi-models) | `configs/deploy/candy_server.yaml`, `configs/deploy/candy_client.yaml` |
+| Candy | [TRON2 OpenPI Candy user guide](https://cwjgfm21di.feishu.cn/wiki/NA5Rw1dWPiu6dwkFAfTcnaFLnQf) | [limx-tron2-dev/tron2-openpi-models](https://huggingface.co/limx-tron2-dev/tron2-openpi-models) | `configs/deploy/candy_server.yaml`, `configs/deploy/candy_client.yaml` |
+| Cloth | [Chinese user guide](https://cwjgfm21di.feishu.cn/wiki/Bcw8wthgpiLrVWkHXk0cBfLOnnc) | [limx-tron2-dev/tron2-openpi-models](https://huggingface.co/limx-tron2-dev/tron2-openpi-models) | `configs/deploy/cloth_server.yaml`, `configs/deploy/cloth_client.yaml` |
 
 Model weights and checkpoints are not stored in this repository. Download the
 weights from the linked model repository, then set the actual checkpoint path in
@@ -224,14 +225,14 @@ state, it may lift both arms directly; keep the front workspace clear.**
 For a non-RTC client profile with `client.rtc_enabled: false`, run:
 
 ```bash
-uv run python examples/tron2/pi_client.py \
+uv run examples/tron2/pi_client.py \
   --profile configs/deploy/my_task_client.local.yaml
 ```
 
 Override the prompt for one run:
 
 ```bash
-uv run python examples/tron2/pi_client.py \
+uv run examples/tron2/pi_client.py \
   --profile configs/deploy/my_task_client.local.yaml \
   --prompt="put the object into the drawer"
 ```
@@ -261,7 +262,7 @@ client:
 Then run:
 
 ```bash
-uv run python examples/tron2/pi_client_rtc.py \
+uv run examples/tron2/pi_client_rtc.py \
   --profile configs/deploy/candy_client.yaml
 ```
 
