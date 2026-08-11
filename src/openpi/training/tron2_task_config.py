@@ -23,6 +23,7 @@ class Tron2TaskConfig:
     num_train_steps: int = 20_000
     save_interval: int = 1000
     batch_size: int = 32
+    fsdp_devices: int = 1
     action_horizon: int = 50
     state_dim: int = 16
     assets_base_dir: str = "./assets"
@@ -96,6 +97,7 @@ def create_train_config(path: str | pathlib.Path, *, exp_name: str | None = None
         num_train_steps=task.num_train_steps,
         save_interval=task.save_interval,
         batch_size=task.batch_size,
+        fsdp_devices=task.fsdp_devices,
         assets_base_dir=task.assets_base_dir,
         checkpoint_base_dir=task.checkpoint_base_dir,
     )

@@ -1,13 +1,13 @@
 policy:
   # Training config name registered in src/openpi/training/config.py.
-  config: pi05_tron2_Cloth
+  config: pi05_tron2_cloth
 
   # Dataset/repo id used by the checkpoint assets, for example norm statistics.
   repo_id: input
 
   # Trained checkpoint step directory.
   # Update this path after downloading the public Cloth weights.
-  checkpoint_dir: checkpoints/pi05_tron2_Cloth/cloth_h30_rtc_74999
+  checkpoint_dir: checkpoints/pi05_tron2_cloth/cloth_h30_rtc_74999
 
   # Default task instruction used when the client does not pass --prompt.
   default_prompt: Fold the cloth

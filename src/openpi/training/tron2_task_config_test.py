@@ -89,6 +89,16 @@ def test_create_train_config_propagates_prompt_from_task(tmp_path: pathlib.Path)
     assert config.data.base_config.prompt_from_task is True
 
 
+def test_create_train_config_propagates_fsdp_devices(tmp_path: pathlib.Path):
+    task_path = tmp_path / "task.yaml"
+    _write_task(task_path)
+    task_path.write_text(f"{task_path.read_text()}\nfsdp_devices: 2\n")
+
+    config = tron2_task_config.create_train_config(task_path)
+
+    assert config.fsdp_devices == 2
+
+
 def test_create_train_config_preserves_task_prompt_through_repack(tmp_path: pathlib.Path):
     task_path = tmp_path / "task.yaml"
     _write_task(task_path, prompt_from_task=True)

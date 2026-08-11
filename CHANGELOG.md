@@ -16,3 +16,12 @@ This file records user-visible and repository-governance changes.
   source checkouts that are not bundled in the repository snapshot.
 - License and provenance documentation for the OpenPI working baseline,
   inherited components, local modifications, and Gemma model-asset boundary.
+- English and Chinese user guides for the public Cloth task.
+- YAML task configuration support for selecting the number of FSDP devices.
+- ModelScope as an additional public mirror for TRON2 OpenPI model weights.
+
+### Changed
+
+- Standardized the English and Chinese README language navigation.
+- Normalized public TRON2 task config names to start their task suffix with a
+  lowercase letter.
