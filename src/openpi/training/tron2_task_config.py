@@ -81,7 +81,6 @@ class Tron2TaskConfig:
     # prompt：任务指令文本，会在训练时作为条件输入传给模型
     # 例如："pick up the red block and place it on the table"
     # 模型会学习在给定这个 prompt 的情况下应该产生什么动作
-    prompt: str
 
     # ── 可选的训练参数 ──
 
@@ -89,6 +88,7 @@ class Tron2TaskConfig:
     # 默认值指向 π₀.5 基础模型在 Google Cloud Storage 上的 checkpoint
     # 支持多种格式：GCS 路径（gs://...）、本地路径、HuggingFace ID
     # 如果不从预训练开始，可以设为空字符串 ""
+    prompt: str | None = None
     weight_loader: str = "gs://openpi-assets/checkpoints/pi05_base/params"
 
     # num_train_steps：总训练步数
@@ -106,10 +106,13 @@ class Tron2TaskConfig:
     # 较大的 batch 训练更稳定但需要更多 GPU 显存
     # 32 是考虑到常见 GPU（如 A100 40GB）的默认设置
     batch_size: int = 32
-
+    
+    fsdp_devices: int = 1
+    
     # action_horizon：动作预测的"时间视野"——模型一次预测未来多少步的动作
     # 50 表示模型预测未来 50 个时间步的动作序列
     # 更大的值让模型规划更长远，但训练和推理也更昂贵
+
     action_horizon: int = 50
 
     # state_dim：机器人状态向量的维度
@@ -265,7 +268,13 @@ def load_task(path: str | pathlib.Path) -> Tron2TaskConfig:
     # 用字典的键值对作为关键字参数创建 Tron2TaskConfig 实例
     # **data 解包字典 → Tron2TaskConfig(name="...", repo_id="...", ...)
     # 未在 YAML 中指定的字段会自动使用 dataclass 定义的默认值
-    return Tron2TaskConfig(**data)
+    
+    task = Tron2TaskConfig(**data)
+    if task.prompt_from_task and task.prompt:
+        raise ValueError("prompt must not be set when prompt_from_task is true")
+    if not task.prompt_from_task and not task.prompt:
+        raise ValueError("prompt is required unless prompt_from_task is true")
+    return task
 
 
 # ============================================================================
@@ -319,22 +328,21 @@ def create_train_config(path: str | pathlib.Path, *, exp_name: str | None = None
     #     即使只有一个 RepackTransform，也用 Group 包装。
     #     Group 按顺序应用多个变换，这里虽然只有一个，
     #     但为将来可能添加更多预处理步骤留了扩展空间。
-    repack_transforms = _transforms.Group(
-        inputs=[
-            _transforms.RepackTransform(
-                {
-                    "images": {
-                        "cam_high": task.cam_high_key,
-                        "cam_left_wrist": task.cam_left_wrist_key,
-                        "cam_right_wrist": task.cam_right_wrist_key,
-                    },
-                    "state": task.state_key,
-                    "actions": task.action_key,
-                }
-            )
-        ]
-    )
 
+    repack_structure: dict[str, Any] = {
+        "images": {
+            "cam_high": task.cam_high_key,
+            "cam_left_wrist": task.cam_left_wrist_key,
+            "cam_right_wrist": task.cam_right_wrist_key,
+        },
+        "state": task.state_key,
+        "actions": task.action_key,
+    }
+    if task.prompt_from_task:
+        repack_structure["prompt"] = "prompt"
+
+    repack_transforms = _transforms.Group(inputs=[_transforms.RepackTransform(repack_structure)])
+    
     # ── 第 3 步：组装 TrainConfig ──
     return _config.TrainConfig(
         # ─── 基本标识 ───
@@ -384,7 +392,9 @@ def create_train_config(path: str | pathlib.Path, *, exp_name: str | None = None
         num_train_steps=task.num_train_steps,
         save_interval=task.save_interval,
         batch_size=task.batch_size,
-
+        
+        fsdp_devices=task.fsdp_devices,
+        
         # ─── 目录配置 ───
         # assets_base_dir：资源文件目录（如归一化统计量 mean/std）
         assets_base_dir=task.assets_base_dir,

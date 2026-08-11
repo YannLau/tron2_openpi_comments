@@ -41,6 +41,8 @@ def test_dry_run_generates_platform_task_config(tmp_path: pathlib.Path):
 
     assert result.returncode == 0, result.stderr
     assert '"repo_id": "input"' in result.stdout
+    assert '"prompt":' not in result.stdout
+    assert "Perform the configured manipulation task" not in result.stdout
     assert '"prompt_from_task": true' in result.stdout
     assert '"rtc_training_simulated_delay": 10' in result.stdout
     assert "scripts/compute_norm_stats.py --task-config" in result.stdout
@@ -48,7 +50,7 @@ def test_dry_run_generates_platform_task_config(tmp_path: pathlib.Path):
 
 
 def test_resume_does_not_overwrite_checkpoint(tmp_path: pathlib.Path):
-    result = _run_dry_run(tmp_path, "--resume")
+    result = _run_dry_run(tmp_path, "--prompt", "test prompt", "--resume")
 
     assert result.returncode == 0, result.stderr
     train_command = next(line for line in result.stdout.splitlines() if "scripts/train_tron2_task.py" in line)
@@ -78,6 +80,8 @@ def test_hf_lerobot_home_is_used_as_default_data_dir(tmp_path: pathlib.Path):
             str(tmp_path / "output"),
             "--exp",
             "public_test",
+            "--prompt",
+            "test prompt",
             "--dry-run",
         ],
         check=False,
@@ -110,6 +114,8 @@ def test_platform_mount_environment_paths_are_used(tmp_path: pathlib.Path):
             "input",
             "--exp",
             "cloud_test",
+            "--prompt",
+            "test prompt",
             "--dry-run",
         ],
         check=False,
@@ -146,6 +152,8 @@ def test_custom_data_and_weight_paths_generate_task_config(tmp_path: pathlib.Pat
             str(output_dir),
             "--exp",
             "local_test",
+            "--prompt",
+            "test prompt",
             "--dry-run",
         ],
         check=False,
@@ -158,7 +166,22 @@ def test_custom_data_and_weight_paths_generate_task_config(tmp_path: pathlib.Pat
     assert f"Model params:     {weight_path}" in result.stdout
     assert f"Output root:      {output_dir}" in result.stdout
     assert '"repo_id": "my_dataset"' in result.stdout
+    assert '"prompt": "test prompt"' in result.stdout
     assert f'"weight_loader": "{weight_path}"' in result.stdout
+
+
+def test_generated_task_config_requires_prompt_without_prompt_from_task(tmp_path: pathlib.Path):
+    result = _run_dry_run(tmp_path)
+
+    assert result.returncode != 0
+    assert "--prompt is required unless --prompt-from-task or --task-config is used" in result.stderr
+
+
+def test_generated_task_config_rejects_prompt_with_prompt_from_task(tmp_path: pathlib.Path):
+    result = _run_dry_run(tmp_path, "--prompt-from-task", "--prompt", "ambiguous prompt")
+
+    assert result.returncode != 0
+    assert "--prompt cannot be used with --prompt-from-task" in result.stderr
 
 
 def test_task_config_rejects_unsafe_experiment_name(tmp_path: pathlib.Path):

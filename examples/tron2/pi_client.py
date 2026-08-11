@@ -52,6 +52,21 @@ from deploy_config import positive_int_or_none   # 安全解析"正整数或 Non
 from deploy_config import PromptController       # 运行时动态修改 prompt 的控制器
 from deploy_config import record_paths           # 生成录制数据的输出文件路径
 from deploy_config import section                # 从配置字典中提取子配置段落
+from _external_tron2_env import ensure_external_tron2_env_on_path
+from deploy_config import PromptController
+from deploy_config import bool_value
+from deploy_config import build_env_config
+from deploy_config import format_obs
+from deploy_config import infer_with_timing
+from deploy_config import load_deploy_config
+from deploy_config import policy_host
+from deploy_config import policy_port
+from deploy_config import positive_int_or_none
+from deploy_config import record_paths
+from deploy_config import section
+from deploy_config import select_profile_path
+import numpy as np
+from openpi_client import websocket_client_policy
 
 # ---------------------------------------------------------------------------
 # 在执行任何 TRON2 相关导入之前，先确保外部 TRON2 环境包的路径已加入 sys.path。
@@ -76,13 +91,13 @@ def _parse_args() -> argparse.Namespace:
     # --deploy-config: 指向部署配置 YAML 文件的路径
     # 这个 YAML 文件包含了所有部署参数：机器人连接方式、策略服务器地址、
     # 控制频率、录制选项等。如果不传则使用代码中的默认值。
+    parser.add_argument("--profile", type=str, default=None, help="Path to client deployment profile YAML.")
     parser.add_argument(
         "--deploy-config",
         type=str,
         default=None,
-        help="Path to deployment YAML.",
+        help="Deprecated alias for --profile.",
     )
-
     # --prompt: 任务指令文本，会和每次观测一起发送给策略模型
     # 例如 "pick up the red block" 或 "open the drawer"
     # 如果同时设置了 YAML 中的 client.prompt，命令行参数优先级更高
@@ -166,10 +181,11 @@ def main() -> None:
     # ------------------------------------------------------------------
     args = _parse_args()
 
-    # load_deploy_config 会读取 YAML 文件并返回一个扁平化的配置字典
-    config_profile = load_deploy_config(args.deploy_config)
 
     # 提取 client 子配置段落（YAML 中 client: 下面的所有键值对）
+    profile_path = select_profile_path(args.profile, args.deploy_config)
+    # load_deploy_config 会读取 YAML 文件并返回一个扁平化的配置字典
+    config_profile = load_deploy_config(profile_path)
     client_profile = section(config_profile, "client")
 
     # ------------------------------------------------------------------

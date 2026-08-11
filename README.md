@@ -1,6 +1,8 @@
+# English | [中文](README_CN.md)
+
 # TRON2 OpenPI
 
-[中文文档](README_CN.md) | [Installation](INSTALL.md)
+[Installation](INSTALL.md)
 
 `tron2_openpi` is a TRON2 deployment-focused derivative of the OpenPI project.
 It keeps the OpenPI policy-serving and pi0/pi0.5 model stack, then adds TRON2
@@ -42,13 +44,14 @@ deployment profiles.
 Public task resources are listed below and will be updated as more examples are
 released.
 
-| Task | User guide | Model weights | Public deploy config |
+| Task | User guide | Model weights | Public deploy profiles |
 | --- | --- | --- | --- |
-| Candy | [TRON2 OpenPI Candy user guide](https://cwjgfm21di.feishu.cn/wiki/DitfwjCRiiSWhBk3MTUcA14tnsh) | [limx-tron2-dev/tron2-openpi-models](https://huggingface.co/limx-tron2-dev/tron2-openpi-models) | `configs/deploy/candy.yaml` |
+| Candy | [TRON2 OpenPI Candy user guide](https://cwjgfm21di.feishu.cn/wiki/NA5Rw1dWPiu6dwkFAfTcnaFLnQf) | [Hugging Face](https://huggingface.co/limx-tron2/tron2-openpi-models) / [ModelScope](https://modelscope.cn/models/limx-tron2/tron2-openpi-models) | `configs/deploy/candy_server.yaml`, `configs/deploy/candy_client.yaml` |
+| Cloth | [TRON2 OpenPI Cloth user guide](https://cwjgfm21di.feishu.cn/wiki/AsuRwJQ94igFPvkcyatctA4JnTc) | [Hugging Face](https://huggingface.co/limx-tron2/tron2-openpi-models) / [ModelScope](https://modelscope.cn/models/limx-tron2/tron2-openpi-models) | `configs/deploy/cloth_server.yaml`, `configs/deploy/cloth_client.yaml` |
 
 Model weights and checkpoints are not stored in this repository. Download the
 weights from the linked model repository, then set the actual checkpoint path in
-the task deploy profile before running a robot.
+the task server profile before running a robot.
 
 ## Repository Layout
 
@@ -57,9 +60,12 @@ parent-directory/
 ├── tron2_openpi/
 │   ├── configs/
 │   │   ├── deploy/
-│   │   │   ├── candy.yaml
-│   │   │   ├── tron2_deploy.example.yaml
-│   │   │   └── tron2_deploy.example_CN.yaml
+│   │   │   ├── candy_server.yaml
+│   │   │   ├── candy_client.yaml
+│   │   │   ├── tron2_deploy.server.example.yaml
+│   │   │   ├── tron2_deploy.client.example.yaml
+│   │   │   ├── tron2_deploy.server.example_CN.yaml
+│   │   │   └── tron2_deploy.client.example_CN.yaml
 │   │   └── train/
 │   │       └── tron2_tasks/
 │   │           └── example.yaml
@@ -93,27 +99,36 @@ For the Chinese installation guide, see [INSTALL_CN.md](INSTALL_CN.md).
 
 ### Deployment Configuration
 
-Use the public task profiles or templates as starting points:
+Deployment uses two profiles per task:
 
-- Candy task profile: `configs/deploy/candy.yaml`
-- English template: `configs/deploy/tron2_deploy.example.yaml`
-- Chinese template: `configs/deploy/tron2_deploy.example_CN.yaml`
+- Server profile: model checkpoint, prompt, policy overrides, and server port.
+- Client profile: policy-server address, robot endpoint, observation source,
+  camera/Bridge settings, execution loop, and RTC settings.
 
-Task-specific profiles such as `configs/deploy/candy.yaml` can be used directly
-for that task after updating the checkpoint path and endpoint values. Future
-public tasks should follow the same pattern: `configs/deploy/<task>.yaml`.
+Use the public Candy profiles or generic templates as starting points:
 
-For a custom private profile, copy a generic template to a `.local.yaml` file and
-edit only that local file:
+- Candy server profile: `configs/deploy/candy_server.yaml`
+- Candy client profile: `configs/deploy/candy_client.yaml`
+- English templates: `configs/deploy/tron2_deploy.server.example.yaml`,
+  `configs/deploy/tron2_deploy.client.example.yaml`
+- Chinese templates: `configs/deploy/tron2_deploy.server.example_CN.yaml`,
+  `configs/deploy/tron2_deploy.client.example_CN.yaml`
+
+Future public tasks should follow the same naming pattern:
+`configs/deploy/<task>_server.yaml` and `configs/deploy/<task>_client.yaml`.
+
+For custom private profiles, copy the generic templates to `.local.yaml` files
+and edit only those local files:
 
 ```bash
-cp configs/deploy/tron2_deploy.example.yaml configs/deploy/tron2_deploy.local.yaml
+cp configs/deploy/tron2_deploy.server.example.yaml configs/deploy/my_task_server.local.yaml
+cp configs/deploy/tron2_deploy.client.example.yaml configs/deploy/my_task_client.local.yaml
 ```
 
 Do not commit `.local.yaml` files. They are for private paths, robot addresses,
 Bridge hosts, camera serial numbers, and local-only experiments.
 
-Minimal task profile fields:
+Minimal server profile:
 
 ```yaml
 policy:
@@ -122,15 +137,26 @@ policy:
   checkpoint_dir: /path/to/checkpoints/TASK_CONFIG_NAME/experiment/step
   default_prompt: TASK_PROMPT
 
-robot:
-  ip: ROBOT_IP
-
-client:
-  observation_source: bridge
-  max_steps: null
+server:
+  host: 0.0.0.0
+  port: 8000
 ```
 
-Core fields:
+Minimal client profile:
+
+```yaml
+client:
+  task: TASK_NAME
+  policy_host: 127.0.0.1
+  policy_port: 8000
+  observation_source: bridge
+  rtc_enabled: true
+
+robot:
+  ip: ROBOT_IP
+```
+
+Server fields:
 
 | Field | Description |
 | --- | --- |
@@ -138,30 +164,31 @@ Core fields:
 | `policy.repo_id` | Asset directory name used to load normalization statistics. |
 | `policy.checkpoint_dir` | Path to the trained checkpoint step directory. |
 | `policy.default_prompt` | Default language instruction when the client does not pass `--prompt`. |
-| `client.policy_host` / `client.policy_port` | Policy server address from the client process. |
-| `client.observation_source` | `bridge` or `legacy`. |
-| `robot.ip` / `robot.port` | TRON2 WebSocket controller address. |
-| `bridge.host` | TRON2 Bridge WebSocket host when using bridge observations. |
-| `camera.serial_to_name` | RealSense serial-to-policy-camera-name mapping when using legacy mode. |
-
-Advanced fields:
-
-| Field | Description |
-| --- | --- |
 | `policy.record` | Saves raw policy inputs/outputs for debugging when `true`. |
 | `policy.action_horizon` | Optional inference action chunk length override. |
 | `policy.state_dim` | Optional TRON2 state/action output dimension override. |
 | `policy.use_delta_joint_actions` | Optional override for delta-action transforms. |
 | `server.host` / `server.port` | Policy server listen address. |
+
+Client fields:
+
+| Field | Description |
+| --- | --- |
+| `client.task` | Human-readable task name used for record filenames. |
+| `client.policy_host` / `client.policy_port` | Policy server address from the client process. |
+| `client.observation_source` | `bridge` or `legacy`. |
 | `client.state_dim` | `16` for arms+grippers, `18` when head joints are included. |
 | `client.fps` | Policy action playback rate. |
 | `client.publish_rate` | Background ServoJ command publication rate. |
-| `client.max_steps` | Number of policy chunks to run; `null` means run until stopped. |
+| `client.max_steps` | Number of policy chunks to run in non-RTC mode; `null` means run until stopped. |
 | `client.rtc_enabled` | Use `pi_client_rtc.py` when `true`; use `pi_client.py` when `false`. |
 | `client.duration` | RTC runtime in seconds; `0` means run until stopped. |
 | `client.execution_horizon` / `client.delay` | RTC `s` and initial `d` timing values. |
 | `client.rtc_guidance_enabled` | Enables inference-time RTC VJP guidance. |
 | `client.trained_rtc_mode` | Uses training-time RTC conditioning when the checkpoint was trained for it. |
+| `robot.ip` / `robot.port` | TRON2 WebSocket controller address. |
+| `bridge.host` | TRON2 Bridge WebSocket host when using bridge observations. |
+| `camera.serial_to_name` | RealSense serial-to-policy-camera-name mapping when using legacy mode. |
 
 `policy.repo_id` must match the asset directory inside the checkpoint:
 
@@ -174,14 +201,14 @@ Example TRON2 config names currently registered in the code:
 | `policy.config` | `policy.repo_id` |
 | --- | --- |
 | `pi05_tron2_alarm` | `alarm` |
-| `pi05_tron2_Banana` | `banana` |
+| `pi05_tron2_banana` | `banana` |
 | `pi05_tron2_cabinet` | `cabinet` |
-| `pi05_tron2_Candy` | `candy` |
-| `pi05_tron2_Chess` | `chess` |
-| `pi05_tron2_Cloth` | `cloth` |
-| `pi05_tron2_Drawer` | `drawer` |
-| `pi05_tron2_Duck` | `duck` |
-| `pi05_tron2_SortFruit` | `sort` |
+| `pi05_tron2_candy` | `candy` |
+| `pi05_tron2_chess` | `chess` |
+| `pi05_tron2_cloth` | `cloth` |
+| `pi05_tron2_drawer` | `drawer` |
+| `pi05_tron2_duck` | `duck` |
+| `pi05_tron2_sortFruit` | `sort` |
 
 ### Run Policy Serving
 
@@ -189,26 +216,26 @@ Start the policy server:
 
 ```bash
 uv run scripts/serve_policy.py \
-  --deploy-config configs/deploy/candy.yaml
+  --profile configs/deploy/candy_server.yaml
 ```
-
-Start the TRON2 client in another terminal:
 
 **Note: the robot should be in the initial state after L1+X, then switched to
 advanced developer mode. After the client starts, the robot will spread both
 arms sideways and then move them forward. If the robot is not in the initial
 state, it may lift both arms directly; keep the front workspace clear.**
 
+For a non-RTC client profile with `client.rtc_enabled: false`, run:
+
 ```bash
-uv run python examples/tron2/pi_client.py \
-  --deploy-config configs/deploy/candy.yaml
+uv run examples/tron2/pi_client.py \
+  --profile configs/deploy/my_task_client.local.yaml
 ```
 
 Override the prompt for one run:
 
 ```bash
-uv run python examples/tron2/pi_client.py \
-  --deploy-config configs/deploy/candy.yaml \
+uv run examples/tron2/pi_client.py \
+  --profile configs/deploy/my_task_client.local.yaml \
   --prompt="put the object into the drawer"
 ```
 
@@ -220,7 +247,7 @@ RTC uses the same server command. The server detects whether the loaded model
 supports RTC and publishes `rtc_enabled` plus `action_horizon` in websocket
 metadata. The client supplies runtime timing from the YAML.
 
-Set these fields in your task deploy profile:
+Set these fields in your task client profile:
 
 ```yaml
 client:
@@ -237,8 +264,8 @@ client:
 Then run:
 
 ```bash
-uv run python examples/tron2/pi_client_rtc.py \
-  --deploy-config configs/deploy/candy.yaml
+uv run examples/tron2/pi_client_rtc.py \
+  --profile configs/deploy/candy_client.yaml
 ```
 
 The RTC client warms up the model, seeds the action queue, retries short
@@ -262,6 +289,10 @@ root. If `repo_id: my_dataset`, the dataset should normally be available under
 ```bash
 export HF_LEROBOT_HOME=/path/to/datasets
 ```
+
+Set `fsdp_devices` in the task YAML to the number of devices used by each FSDP
+shard. Keep it at `1` for single-device training; for multi-device training, the
+value must divide the number of JAX devices visible to the process.
 
 Compute normalization statistics before the first training run:
 
@@ -322,8 +353,8 @@ scripts/cloud_train_entrypoint_portable.sh \
 Real task YAML files are ignored by `.gitignore`; keep only
 `configs/train/tron2_tasks/example.yaml` in the public repository. The template
 supports `repo_id`, prompt, dataset column keys, `action_horizon`, `state_dim`,
-base checkpoint weights, output directories, `prompt_from_task`, and optional
-`rtc_training_simulated_delay`.
+`fsdp_devices`, base checkpoint weights, output directories, `prompt_from_task`,
+and optional `rtc_training_simulated_delay`.
 
 ## Network Deployment Boundary
 
@@ -334,6 +365,7 @@ these interfaces to the Internet or to an untrusted shared network.
 Some runtime links may not provide application authentication or TLS. A `wss://`
 Bridge endpoint does not secure the other links. Internet-facing, cross-site, or
 cloud robot-control topologies require a separate security review before use.
+Source disclosure is not a functional safety approval or real-robot certification.
 See `SECURITY.md` for vulnerability reporting and the full deployment boundary.
 
 ## Safety Notes

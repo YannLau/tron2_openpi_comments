@@ -36,12 +36,13 @@ transform、部署配置模板和 TRON2 真机客户端示例。
 
 以下公开任务资源会随更多示例发布持续更新。
 
-| 任务 | 用户文档 | 模型权重 | 公开部署配置 |
+| 任务 | 用户文档 | 模型权重 | 公开部署 profile |
 | --- | --- | --- | --- |
-| Candy | [TRON2 OpenPI Candy 用户文档](https://cwjgfm21di.feishu.cn/wiki/DitfwjCRiiSWhBk3MTUcA14tnsh) | [limx-tron2-dev/tron2-openpi-models](https://huggingface.co/limx-tron2-dev/tron2-openpi-models) | `configs/deploy/candy.yaml` |
+| Candy | [TRON2 OpenPI Candy 用户文档](https://cwjgfm21di.feishu.cn/wiki/DitfwjCRiiSWhBk3MTUcA14tnsh) | [Hugging Face](https://huggingface.co/limx-tron2/tron2-openpi-models) / [ModelScope](https://modelscope.cn/models/limx-tron2/tron2-openpi-models) | `configs/deploy/candy_server.yaml`, `configs/deploy/candy_client.yaml` |
+| Cloth | [TRON2 OpenPI Cloth 用户文档](https://cwjgfm21di.feishu.cn/wiki/Bcw8wthgpiLrVWkHXk0cBfLOnnc) | [Hugging Face](https://huggingface.co/limx-tron2/tron2-openpi-models) / [ModelScope](https://modelscope.cn/models/limx-tron2/tron2-openpi-models) | `configs/deploy/cloth_server.yaml`, `configs/deploy/cloth_client.yaml` |
 
 模型权重和 checkpoint 不存放在本仓库中。使用真机任务前，请先从表格中的模型仓库下载
-权重，并在对应任务部署配置中填写实际 checkpoint 路径。
+权重，并在对应任务 server profile 中填写实际 checkpoint 路径。
 
 ## 目录结构
 
@@ -50,9 +51,12 @@ transform、部署配置模板和 TRON2 真机客户端示例。
 ├── tron2_openpi/
 │   ├── configs/
 │   │   ├── deploy/
-│   │   │   ├── candy.yaml
-│   │   │   ├── tron2_deploy.example.yaml
-│   │   │   └── tron2_deploy.example_CN.yaml
+│   │   │   ├── candy_server.yaml
+│   │   │   ├── candy_client.yaml
+│   │   │   ├── tron2_deploy.server.example.yaml
+│   │   │   ├── tron2_deploy.client.example.yaml
+│   │   │   ├── tron2_deploy.server.example_CN.yaml
+│   │   │   └── tron2_deploy.client.example_CN.yaml
 │   │   └── train/
 │   │       └── tron2_tasks/
 │   │           └── example.yaml
@@ -86,26 +90,34 @@ transform、部署配置模板和 TRON2 真机客户端示例。
 
 ### 部署配置
 
-请从公开任务配置或模板开始：
+每个任务使用两份 profile：
 
-- Candy 任务配置：`configs/deploy/candy.yaml`
-- 英文模板：`configs/deploy/tron2_deploy.example.yaml`
-- 中文模板：`configs/deploy/tron2_deploy.example_CN.yaml`
+- server profile：模型 checkpoint、默认 prompt、policy 覆盖项和服务端口。
+- client profile：policy server 地址、机器人地址、观测来源、相机/Bridge、执行循环和 RTC 参数。
 
-`configs/deploy/candy.yaml` 这类任务配置可以直接作为对应任务的部署配置使用。运行前请
-更新 checkpoint 路径、机器人地址和 Bridge 地址等本地值。后续公开任务按同样方式使用
-`configs/deploy/<任务名>.yaml`。
+请从公开 Candy profile 或通用模板开始：
 
-如果需要自定义私有配置，可以从通用模板复制一份 `.local.yaml`，并只修改本地文件：
+- Candy server profile：`configs/deploy/candy_server.yaml`
+- Candy client profile：`configs/deploy/candy_client.yaml`
+- 英文模板：`configs/deploy/tron2_deploy.server.example.yaml`、
+  `configs/deploy/tron2_deploy.client.example.yaml`
+- 中文模板：`configs/deploy/tron2_deploy.server.example_CN.yaml`、
+  `configs/deploy/tron2_deploy.client.example_CN.yaml`
+
+后续公开任务按同样方式命名：
+`configs/deploy/<任务名>_server.yaml` 和 `configs/deploy/<任务名>_client.yaml`。
+
+如果需要自定义私有配置，可以从通用模板复制 `.local.yaml`，并只修改本地文件：
 
 ```bash
-cp configs/deploy/tron2_deploy.example_CN.yaml configs/deploy/tron2_deploy.local.yaml
+cp configs/deploy/tron2_deploy.server.example_CN.yaml configs/deploy/my_task_server.local.yaml
+cp configs/deploy/tron2_deploy.client.example_CN.yaml configs/deploy/my_task_client.local.yaml
 ```
 
 不要提交 `.local.yaml` 文件。这类文件用于保存私有路径、机器人地址、Bridge 地址、
 相机序列号和本地实验配置。
 
-最小任务配置示例：
+最小 server profile：
 
 ```yaml
 policy:
@@ -114,15 +126,26 @@ policy:
   checkpoint_dir: /path/to/checkpoints/TASK_CONFIG_NAME/experiment/step
   default_prompt: TASK_PROMPT
 
-robot:
-  ip: ROBOT_IP
-
-client:
-  observation_source: bridge
-  max_steps: null
+server:
+  host: 0.0.0.0
+  port: 8000
 ```
 
-核心字段：
+最小 client profile：
+
+```yaml
+client:
+  task: TASK_NAME
+  policy_host: 127.0.0.1
+  policy_port: 8000
+  observation_source: bridge
+  rtc_enabled: true
+
+robot:
+  ip: ROBOT_IP
+```
+
+server 字段：
 
 | 字段 | 说明 |
 | --- | --- |
@@ -130,30 +153,31 @@ client:
 | `policy.repo_id` | 用于加载归一化统计的 assets 目录名。 |
 | `policy.checkpoint_dir` | 训练好的 checkpoint step 目录。 |
 | `policy.default_prompt` | 客户端未传 `--prompt` 时使用的默认语言指令。 |
-| `client.policy_host` / `client.policy_port` | 客户端看到的 policy server 地址。 |
-| `client.observation_source` | `bridge` 或 `legacy`。 |
-| `robot.ip` / `robot.port` | TRON2 WebSocket 机器人控制器地址。 |
-| `bridge.host` | Bridge 观测模式使用的 TRON2 Bridge WebSocket 地址。 |
-| `camera.serial_to_name` | legacy 模式下 RealSense 序列号到 policy 相机名的映射。 |
-
-高级字段：
-
-| 字段 | 说明 |
-| --- | --- |
 | `policy.record` | 为 `true` 时保存原始 policy 输入/输出，用于调试。 |
 | `policy.action_horizon` | 可选的推理 action chunk 长度覆盖项。 |
 | `policy.state_dim` | 可选的 TRON2 state/action 输出维度覆盖项。 |
 | `policy.use_delta_joint_actions` | 可选的 delta action transform 覆盖项。 |
 | `server.host` / `server.port` | policy server 监听地址。 |
+
+client 字段：
+
+| 字段 | 说明 |
+| --- | --- |
+| `client.task` | 任务名，用于生成录制文件名。 |
+| `client.policy_host` / `client.policy_port` | 客户端看到的 policy server 地址。 |
+| `client.observation_source` | `bridge` 或 `legacy`。 |
 | `client.state_dim` | `16` 表示双臂和夹爪，`18` 表示额外包含头部关节。 |
 | `client.fps` | policy action 播放频率。 |
 | `client.publish_rate` | 后台 ServoJ 指令发送频率。 |
-| `client.max_steps` | 运行多少个 policy chunk；`null` 表示持续运行直到手动停止。 |
+| `client.max_steps` | 非 RTC 模式运行多少个 policy chunk；`null` 表示持续运行直到手动停止。 |
 | `client.rtc_enabled` | 为 `true` 时使用 `pi_client_rtc.py`；为 `false` 时使用 `pi_client.py`。 |
 | `client.duration` | RTC 运行时长，单位秒；`0` 表示一直运行。 |
 | `client.execution_horizon` / `client.delay` | RTC 的 `s` 和初始 `d` 时序参数。 |
 | `client.rtc_guidance_enabled` | 是否启用推理时 RTC VJP guidance。 |
 | `client.trained_rtc_mode` | checkpoint 使用训练时 RTC 时打开该模式。 |
+| `robot.ip` / `robot.port` | TRON2 WebSocket 机器人控制器地址。 |
+| `bridge.host` | Bridge 观测模式使用的 TRON2 Bridge WebSocket 地址。 |
+| `camera.serial_to_name` | legacy 模式下 RealSense 序列号到 policy 相机名的映射。 |
 
 `policy.repo_id` 必须和 checkpoint 内的 assets 目录一致：
 
@@ -166,14 +190,14 @@ checkpoint_dir/assets/<policy.repo_id>/norm_stats.json
 | `policy.config` | `policy.repo_id` |
 | --- | --- |
 | `pi05_tron2_alarm` | `alarm` |
-| `pi05_tron2_Banana` | `banana` |
+| `pi05_tron2_banana` | `banana` |
 | `pi05_tron2_cabinet` | `cabinet` |
-| `pi05_tron2_Candy` | `candy` |
-| `pi05_tron2_Chess` | `chess` |
-| `pi05_tron2_Cloth` | `cloth` |
-| `pi05_tron2_Drawer` | `drawer` |
-| `pi05_tron2_Duck` | `duck` |
-| `pi05_tron2_SortFruit` | `sort` |
+| `pi05_tron2_candy` | `candy` |
+| `pi05_tron2_chess` | `chess` |
+| `pi05_tron2_cloth` | `cloth` |
+| `pi05_tron2_drawer` | `drawer` |
+| `pi05_tron2_duck` | `duck` |
+| `pi05_tron2_sortFruit` | `sort` |
 
 ### 启动策略服务
 
@@ -181,23 +205,23 @@ checkpoint_dir/assets/<policy.repo_id>/norm_stats.json
 
 ```bash
 uv run scripts/serve_policy.py \
-  --deploy-config configs/deploy/candy.yaml
+  --profile configs/deploy/candy_server.yaml
 ```
-
-在另一个终端启动 TRON2 客户端：
 
 **注意：机器人需处于L1+X后的初始状态，然后切换到高级开发者模式，运行客户端后机器人会侧展双臂，然后前伸，若非初始状态可能会直接抬起双臂，警惕前方物体风险！！！**
 
+如果 client profile 中 `client.rtc_enabled: false`，在另一个终端运行普通客户端：
+
 ```bash
-uv run python examples/tron2/pi_client.py \
-  --deploy-config configs/deploy/candy.yaml
+uv run examples/tron2/pi_client.py \
+  --profile configs/deploy/my_task_client.local.yaml
 ```
 
 临时覆盖任务指令：
 
 ```bash
-uv run python examples/tron2/pi_client.py \
-  --deploy-config configs/deploy/candy.yaml \
+uv run examples/tron2/pi_client.py \
+  --profile configs/deploy/my_task_client.local.yaml \
   --prompt="put the object into the drawer"
 ```
 
@@ -209,7 +233,7 @@ RTC 使用同一个 server 命令。server 会自动检测加载的模型是否�
 websocket metadata 中发布 `rtc_enabled` 和 `action_horizon`。client 侧运行参数来自
 YAML。
 
-在任务部署配置中设置：
+在任务 client profile 中设置：
 
 ```yaml
 client:
@@ -226,8 +250,8 @@ client:
 然后运行：
 
 ```bash
-uv run python examples/tron2/pi_client_rtc.py \
-  --deploy-config configs/deploy/candy.yaml
+uv run examples/tron2/pi_client_rtc.py \
+  --profile configs/deploy/candy_client.yaml
 ```
 
 RTC client 会先 warmup 模型并填充 action queue；运行中会在短暂观测超时时等待新鲜
@@ -249,6 +273,9 @@ cp configs/train/tron2_tasks/example.yaml configs/train/tron2_tasks/my_task.yaml
 ```bash
 export HF_LEROBOT_HOME=/path/to/datasets
 ```
+
+任务 YAML 中的 `fsdp_devices` 表示每个 FSDP shard 使用的设备数。单设备训练保持
+为 `1`；多设备训练时，该值必须能够整除当前进程可见的 JAX 设备总数。
 
 首次训练前先计算 normalization statistics：
 
@@ -306,8 +333,8 @@ scripts/cloud_train_entrypoint_portable.sh \
 
 真实任务 YAML 已被 `.gitignore` 忽略；公开仓库只保留
 `configs/train/tron2_tasks/example.yaml`。模板支持 `repo_id`、prompt、数据列名、
-`action_horizon`、`state_dim`、base checkpoint 权重、输出路径，以及可选的
-`prompt_from_task` 和 `rtc_training_simulated_delay`。
+`action_horizon`、`state_dim`、`fsdp_devices`、base checkpoint 权重、输出路径，
+以及可选的 `prompt_from_task` 和 `rtc_training_simulated_delay`。
 
 ## 网络部署边界
 
@@ -316,6 +343,7 @@ policy server/client、TRON2 机器人控制和 Bridge 观测链路仅支持在�
 
 部分运行时链路不一定提供应用层鉴权或 TLS。`wss://` Bridge 端点不会保护其他链路。
 任何面向互联网、跨站点或云端的机器人控制拓扑，都需要在使用前单独进行安全评审。
+源码公开不等于功能安全批准或真机认证。
 漏洞报告方式和完整部署边界见 `SECURITY.md`。
 
 ## 安全注意事项

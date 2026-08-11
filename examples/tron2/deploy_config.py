@@ -28,22 +28,25 @@
   本模块通过 _external_tron2_env.py 将 ../tron2_env/src 加入 sys.path，
   然后从中导入 Tron2Config、CameraConfig 等配置类。
 =============================================================================
+This module keeps the example clients small and reads the client-side deploy
+profile schema for robot, camera, bridge, and client options.
 """
 
 from __future__ import annotations
 
+from datetime import datetime
 import logging
 import math
+from pathlib import Path
 import sys
 import threading
 import time
-from datetime import datetime
-from pathlib import Path
 from typing import Any
 
 # einops：爱因斯坦求和约定的张量操作库
 #     这里用于 rearrange(图像, "h w c -> c h w")，即把通道维从最后一维移到第一维
 #     （例如 PIL/OpenCV 的 HWC 格式 → PyTorch 的 CHW 格式）
+from _external_tron2_env import ensure_external_tron2_env_on_path
 import einops
 # NumPy：Python 科学计算基础库，这里用于处理图像数组和关节角度数组
 import numpy as np
@@ -173,6 +176,18 @@ def load_deploy_config(path: str | Path | None) -> dict[str, Any]:
           task: "pick_and_place"
     """
     return _deploy_config.load_deploy_config(path)
+
+
+def load_deploy_profile(path: str | Path | None) -> dict[str, Any]:
+    """Alias for callers that use the newer profile terminology."""
+    return load_deploy_config(path)
+
+
+def select_profile_path(
+    profile: str | Path | None,
+    deploy_config: str | Path | None = None,
+) -> str | Path | None:
+    return _deploy_config.select_profile_path(profile, deploy_config)
 
 
 def section(config: dict[str, Any], name: str) -> dict[str, Any]:

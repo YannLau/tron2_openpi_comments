@@ -1,11 +1,10 @@
 import hashlib
+from pathlib import Path
 import re
 import subprocess
 import tomllib
-from pathlib import Path
 
 import pytest
-
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 COLLABORATION_TEMPLATES = (
@@ -144,7 +143,12 @@ def test_public_issue_surfaces_route_suspected_vulnerabilities_privately(relativ
 
 @pytest.mark.parametrize(
     "relative_path",
-    ("README.md", "docs/remote_inference.md", "configs/deploy/tron2_deploy.example.yaml"),
+    (
+        "README.md",
+        "docs/remote_inference.md",
+        "configs/deploy/tron2_deploy.server.example.yaml",
+        "configs/deploy/tron2_deploy.client.example.yaml",
+    ),
 )
 def test_english_runtime_docs_define_the_network_deployment_boundary(relative_path: str):
     content = _read_repository_file(relative_path)
@@ -167,7 +171,11 @@ def test_english_runtime_docs_define_the_network_deployment_boundary(relative_pa
 
 @pytest.mark.parametrize(
     "relative_path",
-    ("README_CN.md", "configs/deploy/tron2_deploy.example_CN.yaml"),
+    (
+        "README_CN.md",
+        "configs/deploy/tron2_deploy.server.example_CN.yaml",
+        "configs/deploy/tron2_deploy.client.example_CN.yaml",
+    ),
 )
 def test_chinese_runtime_docs_define_the_network_deployment_boundary(relative_path: str):
     content = _read_repository_file(relative_path)
@@ -193,8 +201,16 @@ def test_chinese_runtime_docs_define_the_network_deployment_boundary(relative_pa
     (
         ("README.md", ("source disclosure", "functional safety", "real-robot certification")),
         ("README_CN.md", ("源码公开", "功能安全", "真机认证")),
-        ("configs/deploy/tron2_deploy.example.yaml", ("source disclosure", "functional safety", "real-robot certification")),
-        ("configs/deploy/tron2_deploy.example_CN.yaml", ("源码公开", "功能安全", "真机认证")),
+        (
+            "configs/deploy/tron2_deploy.server.example.yaml",
+            ("source disclosure", "functional safety", "real-robot certification"),
+        ),
+        (
+            "configs/deploy/tron2_deploy.client.example.yaml",
+            ("source disclosure", "functional safety", "real-robot certification"),
+        ),
+        ("configs/deploy/tron2_deploy.server.example_CN.yaml", ("源码公开", "功能安全", "真机认证")),
+        ("configs/deploy/tron2_deploy.client.example_CN.yaml", ("源码公开", "功能安全", "真机认证")),
     ),
 )
 def test_source_disclosure_is_not_described_as_safety_certification(relative_path: str, terms: tuple[str, ...]):

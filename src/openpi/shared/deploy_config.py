@@ -142,6 +142,15 @@ def resolve_config_path(path: str | Path) -> Path:
 # ============================================================================
 # YAML 配置加载 / YAML Configuration Loading
 # ============================================================================
+def select_profile_path(
+    profile: str | Path | None,
+    deploy_config: str | Path | None = None,
+) -> str | Path | None:
+    """Return the preferred deploy profile path while preserving the old flag."""
+    if profile is not None and deploy_config is not None:
+        raise ValueError("Use either --profile or --deploy-config, not both.")
+    return profile if profile is not None else deploy_config
+
 
 def load_deploy_config(path: str | Path | None) -> dict[str, Any]:
     """加载部署 YAML 配置文件，返回 Python 字典。

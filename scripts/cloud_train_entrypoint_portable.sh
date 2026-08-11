@@ -10,7 +10,7 @@ OUTPUT_DIR="${OUTPUT_DIR:-/data/output}"
 
 REPO_ID=""
 EXP_NAME=""
-PROMPT="Perform the configured manipulation task"
+PROMPT=""
 STEPS=20000
 SAVE_INTERVAL=5000
 BATCH_SIZE=32
@@ -59,7 +59,7 @@ Default platform paths:
 Options:
   --repo-id ID          LeRobot dataset ID below the dataset root
   --exp NAME            Experiment and checkpoint directory name
-  --prompt TEXT         Fallback task prompt
+  --prompt TEXT         Task prompt; required unless --prompt-from-task is used
   --prompt-from-task    Use each LeRobot episode's task text as the prompt
   --steps N             Training steps (default: 20000)
   --save-interval N     Checkpoint interval (default: 5000)
@@ -278,6 +278,8 @@ if [ -n "$TASK_CONFIG" ]; then
 else
   [ -n "$REPO_ID" ] || die "--repo-id is required unless --task-config is used"
   [ -n "$EXP_NAME" ] || die "--exp is required unless --task-config is used"
+  [ "$PROMPT_FROM_TASK" = false ] || [ -z "$PROMPT" ] || die "--prompt cannot be used with --prompt-from-task"
+  [ "$PROMPT_FROM_TASK" = true ] || [ -n "$PROMPT" ] || die "--prompt is required unless --prompt-from-task or --task-config is used"
   [[ "$REPO_ID" != /* ]] || die "--repo-id must be relative to --data-dir"
   case "/$REPO_ID/" in
     */../*|*/./*) die "--repo-id must not contain '.' or '..' path segments" ;;
@@ -334,7 +336,6 @@ import sys
 config = {
     "name": name,
     "repo_id": repo_id,
-    "prompt": prompt,
     "prompt_from_task": prompt_from_task == "true",
     "weight_loader": weight_path,
     "num_train_steps": int(steps),
@@ -345,6 +346,8 @@ config = {
     "checkpoint_base_dir": output_dir,
     "assets_base_dir": str(pathlib.Path(output_dir) / "assets"),
 }
+if prompt:
+    config["prompt"] = prompt
 if rtc_delay:
     config["rtc_training_simulated_delay"] = int(rtc_delay)
 

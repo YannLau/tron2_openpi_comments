@@ -74,6 +74,8 @@ from dataclasses import dataclass      # 轻量级数据类，用于配置对象
 import logging
 import math
 import sys
+from threading import Event
+from threading import Thread
 import time
 import traceback
 from threading import Event, Thread   # Event: 线程间信号; Thread: 线程
@@ -108,7 +110,8 @@ from deploy_config import timestamp_ms            # 安全解析时间戳（毫�
 ensure_external_tron2_env_on_path()
 
 from tron2_env import Tron2Env
-from tron2_env.rtc import ActionQueue, LatencyTracker
+from tron2_env.rtc import ActionQueue
+from tron2_env.rtc import LatencyTracker
 
 # 模块级 logger，使用 __name__ 作为标识，便于在日志中定位来源
 logger = logging.getLogger(__name__)
@@ -152,11 +155,12 @@ def _parse_args() -> argparse.Namespace:
         argparse.Namespace: 包含 deploy_config 和 prompt 两个属性。
     """
     parser = argparse.ArgumentParser(description="Run TRON2 RTC deployment.")
+    parser.add_argument("--profile", type=str, default=None, help="Path to client deployment profile YAML.")
     parser.add_argument(
         "--deploy-config",
         type=str,
         default=None,
-        help="Path to deployment YAML.",
+        help="Deprecated alias for --profile.",
     )
     parser.add_argument(
         "--prompt",
@@ -1599,7 +1603,8 @@ def main() -> None:
     # 第一步：加载配置
     # ------------------------------------------------------------------
     args = _parse_args()
-    config_profile = load_deploy_config(args.deploy_config)
+    profile_path = select_profile_path(args.profile, args.deploy_config)
+    config_profile = load_deploy_config(profile_path)
     client_profile = section(config_profile, "client")
 
     # 安全检查：RTC 客户端必须启用 rtc_enabled
