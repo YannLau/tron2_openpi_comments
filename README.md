@@ -2,7 +2,7 @@
 
 # TRON2 OpenPI
 
-[中文文档](README_CN.md) | [Installation](INSTALL.md)
+[Installation](INSTALL.md)
 
 `tron2_openpi` is a TRON2 deployment-focused derivative of the OpenPI project.
 It keeps the OpenPI policy-serving and pi0/pi0.5 model stack, then adds TRON2
