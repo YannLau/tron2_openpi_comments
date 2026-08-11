@@ -1,6 +1,6 @@
 policy:
   # Training config name registered in src/openpi/training/config.py.
-  config: pi05_tron2_Candy
+  config: pi05_tron2_candy
 
   # Dataset/repo id used by the checkpoint assets, for example norm statistics.
   repo_id: input

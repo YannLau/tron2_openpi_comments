@@ -46,8 +46,8 @@ released.
 
 | Task | User guide | Model weights | Public deploy profiles |
 | --- | --- | --- | --- |
-| Candy | [TRON2 OpenPI Candy user guide](https://cwjgfm21di.feishu.cn/wiki/NA5Rw1dWPiu6dwkFAfTcnaFLnQf) | [limx-tron2-dev/tron2-openpi-models](https://huggingface.co/limx-tron2-dev/tron2-openpi-models) | `configs/deploy/candy_server.yaml`, `configs/deploy/candy_client.yaml` |
-| Cloth | [Chinese user guide](https://cwjgfm21di.feishu.cn/wiki/Bcw8wthgpiLrVWkHXk0cBfLOnnc) | [limx-tron2-dev/tron2-openpi-models](https://huggingface.co/limx-tron2-dev/tron2-openpi-models) | `configs/deploy/cloth_server.yaml`, `configs/deploy/cloth_client.yaml` |
+| Candy | [TRON2 OpenPI Candy user guide](https://cwjgfm21di.feishu.cn/wiki/NA5Rw1dWPiu6dwkFAfTcnaFLnQf) | [Hugging Face](https://huggingface.co/limx-tron2/tron2-openpi-models) / [ModelScope](https://modelscope.cn/models/limx-tron2/tron2-openpi-models) | `configs/deploy/candy_server.yaml`, `configs/deploy/candy_client.yaml` |
+| Cloth | [TRON2 OpenPI Cloth user guide](https://cwjgfm21di.feishu.cn/wiki/AsuRwJQ94igFPvkcyatctA4JnTc) | [Hugging Face](https://huggingface.co/limx-tron2/tron2-openpi-models) / [ModelScope](https://modelscope.cn/models/limx-tron2/tron2-openpi-models) | `configs/deploy/cloth_server.yaml`, `configs/deploy/cloth_client.yaml` |
 
 Model weights and checkpoints are not stored in this repository. Download the
 weights from the linked model repository, then set the actual checkpoint path in
@@ -201,14 +201,14 @@ Example TRON2 config names currently registered in the code:
 | `policy.config` | `policy.repo_id` |
 | --- | --- |
 | `pi05_tron2_alarm` | `alarm` |
-| `pi05_tron2_Banana` | `banana` |
+| `pi05_tron2_banana` | `banana` |
 | `pi05_tron2_cabinet` | `cabinet` |
-| `pi05_tron2_Candy` | `candy` |
-| `pi05_tron2_Chess` | `chess` |
-| `pi05_tron2_Cloth` | `cloth` |
-| `pi05_tron2_Drawer` | `drawer` |
-| `pi05_tron2_Duck` | `duck` |
-| `pi05_tron2_SortFruit` | `sort` |
+| `pi05_tron2_candy` | `candy` |
+| `pi05_tron2_chess` | `chess` |
+| `pi05_tron2_cloth` | `cloth` |
+| `pi05_tron2_drawer` | `drawer` |
+| `pi05_tron2_duck` | `duck` |
+| `pi05_tron2_sortFruit` | `sort` |
 
 ### Run Policy Serving
 
@@ -290,6 +290,10 @@ root. If `repo_id: my_dataset`, the dataset should normally be available under
 export HF_LEROBOT_HOME=/path/to/datasets
 ```
 
+Set `fsdp_devices` in the task YAML to the number of devices used by each FSDP
+shard. Keep it at `1` for single-device training; for multi-device training, the
+value must divide the number of JAX devices visible to the process.
+
 Compute normalization statistics before the first training run:
 
 ```bash
@@ -349,8 +353,8 @@ scripts/cloud_train_entrypoint_portable.sh \
 Real task YAML files are ignored by `.gitignore`; keep only
 `configs/train/tron2_tasks/example.yaml` in the public repository. The template
 supports `repo_id`, prompt, dataset column keys, `action_horizon`, `state_dim`,
-base checkpoint weights, output directories, `prompt_from_task`, and optional
-`rtc_training_simulated_delay`.
+`fsdp_devices`, base checkpoint weights, output directories, `prompt_from_task`,
+and optional `rtc_training_simulated_delay`.
 
 ## Network Deployment Boundary
 

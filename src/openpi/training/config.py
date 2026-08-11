@@ -642,14 +642,14 @@ def _tron2_task_config(name: str, repo_id: str, default_prompt: str) -> TrainCon
 def _tron2_checkpoint_task_configs() -> list[TrainConfig]:
     return [
         _tron2_task_config("pi05_tron2_alarm", "alarm", "Perform the TRON2 alarm task"),
-        _tron2_task_config("pi05_tron2_Banana", "banana", "Perform the TRON2 banana task"),
+        _tron2_task_config("pi05_tron2_banana", "banana", "Perform the TRON2 banana task"),
         _tron2_task_config("pi05_tron2_cabinet", "cabinet", "Perform the TRON2 cabinet task"),
-        _tron2_task_config("pi05_tron2_Candy", "candy", "Perform the TRON2 candy task"),
-        _tron2_task_config("pi05_tron2_Chess", "chess", "Perform the TRON2 chess task"),
-        _tron2_task_config("pi05_tron2_Cloth", "cloth", "Perform the TRON2 cloth task"),
-        _tron2_task_config("pi05_tron2_Drawer", "drawer", "Perform the TRON2 drawer task"),
-        _tron2_task_config("pi05_tron2_Duck", "duck", "Perform the TRON2 duck task"),
-        _tron2_task_config("pi05_tron2_SortFruit", "sort", "Perform the TRON2 sort fruit task"),
+        _tron2_task_config("pi05_tron2_candy", "candy", "Perform the TRON2 candy task"),
+        _tron2_task_config("pi05_tron2_chess", "chess", "Perform the TRON2 chess task"),
+        _tron2_task_config("pi05_tron2_cloth", "cloth", "Perform the TRON2 cloth task"),
+        _tron2_task_config("pi05_tron2_drawer", "drawer", "Perform the TRON2 drawer task"),
+        _tron2_task_config("pi05_tron2_duck", "duck", "Perform the TRON2 duck task"),
+        _tron2_task_config("pi05_tron2_sortFruit", "sort", "Perform the TRON2 sort fruit task"),
     ]
 
 

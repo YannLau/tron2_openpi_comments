@@ -38,8 +38,8 @@ transform、部署配置模板和 TRON2 真机客户端示例。
 
 | 任务 | 用户文档 | 模型权重 | 公开部署 profile |
 | --- | --- | --- | --- |
-| Candy | [TRON2 OpenPI Candy 用户文档](https://cwjgfm21di.feishu.cn/wiki/DitfwjCRiiSWhBk3MTUcA14tnsh) | [limx-tron2-dev/tron2-openpi-models](https://huggingface.co/limx-tron2-dev/tron2-openpi-models) | `configs/deploy/candy_server.yaml`, `configs/deploy/candy_client.yaml` |
-| Cloth | [TRON2 OpenPI Cloth 用户文档](https://cwjgfm21di.feishu.cn/wiki/Bcw8wthgpiLrVWkHXk0cBfLOnnc) | [limx-tron2-dev/tron2-openpi-models](https://huggingface.co/limx-tron2-dev/tron2-openpi-models) | `configs/deploy/cloth_server.yaml`, `configs/deploy/cloth_client.yaml` |
+| Candy | [TRON2 OpenPI Candy 用户文档](https://cwjgfm21di.feishu.cn/wiki/DitfwjCRiiSWhBk3MTUcA14tnsh) | [Hugging Face](https://huggingface.co/limx-tron2/tron2-openpi-models) / [ModelScope](https://modelscope.cn/models/limx-tron2/tron2-openpi-models) | `configs/deploy/candy_server.yaml`, `configs/deploy/candy_client.yaml` |
+| Cloth | [TRON2 OpenPI Cloth 用户文档](https://cwjgfm21di.feishu.cn/wiki/Bcw8wthgpiLrVWkHXk0cBfLOnnc) | [Hugging Face](https://huggingface.co/limx-tron2/tron2-openpi-models) / [ModelScope](https://modelscope.cn/models/limx-tron2/tron2-openpi-models) | `configs/deploy/cloth_server.yaml`, `configs/deploy/cloth_client.yaml` |
 
 模型权重和 checkpoint 不存放在本仓库中。使用真机任务前，请先从表格中的模型仓库下载
 权重，并在对应任务 server profile 中填写实际 checkpoint 路径。
@@ -190,14 +190,14 @@ checkpoint_dir/assets/<policy.repo_id>/norm_stats.json
 | `policy.config` | `policy.repo_id` |
 | --- | --- |
 | `pi05_tron2_alarm` | `alarm` |
-| `pi05_tron2_Banana` | `banana` |
+| `pi05_tron2_banana` | `banana` |
 | `pi05_tron2_cabinet` | `cabinet` |
-| `pi05_tron2_Candy` | `candy` |
-| `pi05_tron2_Chess` | `chess` |
-| `pi05_tron2_Cloth` | `cloth` |
-| `pi05_tron2_Drawer` | `drawer` |
-| `pi05_tron2_Duck` | `duck` |
-| `pi05_tron2_SortFruit` | `sort` |
+| `pi05_tron2_candy` | `candy` |
+| `pi05_tron2_chess` | `chess` |
+| `pi05_tron2_cloth` | `cloth` |
+| `pi05_tron2_drawer` | `drawer` |
+| `pi05_tron2_duck` | `duck` |
+| `pi05_tron2_sortFruit` | `sort` |
 
 ### 启动策略服务
 
@@ -274,6 +274,9 @@ cp configs/train/tron2_tasks/example.yaml configs/train/tron2_tasks/my_task.yaml
 export HF_LEROBOT_HOME=/path/to/datasets
 ```
 
+任务 YAML 中的 `fsdp_devices` 表示每个 FSDP shard 使用的设备数。单设备训练保持
+为 `1`；多设备训练时，该值必须能够整除当前进程可见的 JAX 设备总数。
+
 首次训练前先计算 normalization statistics：
 
 ```bash
@@ -330,8 +333,8 @@ scripts/cloud_train_entrypoint_portable.sh \
 
 真实任务 YAML 已被 `.gitignore` 忽略；公开仓库只保留
 `configs/train/tron2_tasks/example.yaml`。模板支持 `repo_id`、prompt、数据列名、
-`action_horizon`、`state_dim`、base checkpoint 权重、输出路径，以及可选的
-`prompt_from_task` 和 `rtc_training_simulated_delay`。
+`action_horizon`、`state_dim`、`fsdp_devices`、base checkpoint 权重、输出路径，
+以及可选的 `prompt_from_task` 和 `rtc_training_simulated_delay`。
 
 ## 网络部署边界
 
