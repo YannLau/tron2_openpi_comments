@@ -1,3 +1,5 @@
+# English | [中文](README_CN.md)
+
 # TRON2 OpenPI
 
 [中文文档](README_CN.md) | [Installation](INSTALL.md)
