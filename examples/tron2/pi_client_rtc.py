@@ -102,6 +102,7 @@ from deploy_config import PromptController        # 运行时动态修改 prompt
 from deploy_config import record_paths            # 生成录制文件路径
 from deploy_config import relative_sensor_time_s  # 计算传感器时间戳的相对时间
 from deploy_config import section                 # 提取配置子段落
+from deploy_config import select_profile_path
 from deploy_config import timestamp_ms            # 安全解析时间戳（毫秒）
 
 # ---------------------------------------------------------------------------
