@@ -1,13 +1,13 @@
 policy:
   # Training config name registered in src/openpi/training/config.py.
-  config: pi05_tron2_sort
+  config: pi05_tron2_sortFruit
 
   # Dataset/repo id used by the checkpoint assets, for example norm statistics.
   repo_id: input
 
   # Trained checkpoint step directory.
   # Update this path after downloading the public Cloth weights.
-  checkpoint_dir: checkpoints/pi05_tron2_sort/sort_h50_rtc_30000
+  checkpoint_dir: /home/zidonghua/tron2/cloth/pi05_tron2_sort/sort_h50_rtc_30000
 
   # Default task instruction used when the client does not pass --prompt.
   default_prompt: Sorting fruits

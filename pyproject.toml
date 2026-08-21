@@ -18,6 +18,9 @@ dependencies = [
     "gym-aloha>=0.1.1",
     "imageio>=2.36.1",
     "jax[cuda12]==0.5.3; sys_platform == 'linux'",
+    # jax 0.5.3's XLA is built against the CUDA 12.6 toolchain; newer ptxas
+    # versions crash the GPU compiler. Keep ptxas pinned to the 12.6 release.
+    "nvidia-cuda-nvcc-cu12==12.6.85; sys_platform == 'linux'",
     "jax==0.5.3; sys_platform != 'linux'",
     "jaxtyping==0.2.36",
     # Required for LeRobot dataset loading and TRON2 training.

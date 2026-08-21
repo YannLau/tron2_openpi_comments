@@ -1,16 +1,16 @@
 policy:
   # Training config name registered in src/openpi/training/config.py.
-  config: pi05_tron2_cloth
+  config: pi05_tron_all_data_lora
 
   # Dataset/repo id used by the checkpoint assets, for example norm statistics.
-  repo_id: input
+  repo_id: lerobot_2026-07-20_09-20-48
 
   # Trained checkpoint step directory.
-  # Update this path after downloading the public Cloth weights.
-  checkpoint_dir: /home/zidonghua/tron2/cloth/pi05_tron2_cloth/cloth_h30_rtc_74999
-
+  # Update this path after downloading the public Candy weights.
+  checkpoint_dir: /home/zidonghua/tron2/checkpoints_absolute_action/root/shared-nvme/checkpoints_absolute_action/pi05_tron_all_data_lora/tron2lora/19999
+  # checkpoint_dir: /home/zidonghua/tron2/checkpoints_delta_action/root/shared-nvme/checkpoints/pi05_tron_all_data_lora/tron2lora-delta-action/19999
   # Default task instruction used when the client does not pass --prompt.
-  default_prompt: Fold the cloth
+  default_prompt: Put the banana on the plate.
 
   # Save raw policy inputs/outputs only for debugging.
   record: false

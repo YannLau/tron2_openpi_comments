@@ -6,6 +6,16 @@ import os
 import socket
 import time
 
+# XLA GPU autotuning segfaults with the cuDNN 9.5 wheels pulled in by torch 2.7:
+# jaxlib 0.5.3's XLA crashes while enumerating candidate kernels during
+# compilation (SIGSEGV in backend_compile). Disabling autotuning makes XLA fall
+# back to deterministic heuristics and avoids the crash. This must be set
+# before importing jax, because XLA flags are parsed when jaxlib is loaded.
+if "--xla_gpu_autotune_level" not in os.environ.get("XLA_FLAGS", ""):
+    os.environ["XLA_FLAGS"] = (
+        os.environ.get("XLA_FLAGS", "") + " --xla_gpu_autotune_level=0"
+    ).strip()
+
 import jax
 import numpy as np
 import tyro
@@ -269,6 +279,7 @@ def warmup_policy(policy: _policy.Policy, rtc_supported: bool) -> None:
     logging.info("[warmup] Compiling standard inference path...")
     t0 = time.monotonic()
     try:
+        logging.info("============================执行点2=============================")
         policy.infer(dummy_obs)
         logging.info("[warmup] Standard inference path complete in %.1fs", time.monotonic() - t0)
     except Exception:
@@ -312,7 +323,7 @@ def main(args: Args) -> None:
         logging.info("RTC not supported by this model.")
     if (args.rtc_enabled or _deploy_config.bool_value(server_profile.get("rtc_enabled", False))) and not rtc_supported:
         logging.warning("RTC was requested, but this model does not expose RTC parameters.")
-
+    logging.info("===========================================执行点1=====================================")
     warmup_policy(policy, rtc_supported)
 
     record = args.record or _deploy_config.bool_value(policy_profile.get("record", False))

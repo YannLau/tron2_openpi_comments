@@ -7,7 +7,7 @@ policy:
 
   # Trained checkpoint step directory.
   # Update this path after downloading the public Candy weights.
-  checkpoint_dir: checkpoints/pi05_tron2_candy/candy_h30_rtc_25000
+  checkpoint_dir: /home/zidonghua/tron2/cloth/pi05_tron2_candy/candy_h30_rtc_25000
 
   # Default task instruction used when the client does not pass --prompt.
   default_prompt: Hand out the candy

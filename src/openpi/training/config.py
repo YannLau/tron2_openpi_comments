@@ -655,6 +655,20 @@ def _tron2_checkpoint_task_configs() -> list[TrainConfig]:
 
 # Use `get_config` if you need to get a config by name in your code.
 _CONFIGS = [
+    TrainConfig(
+        name="pi05_tron_all_data_lora",
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            paligemma_variant='gemma_2b_lora',
+            action_expert_variant='gemma_300m_lora',
+        ),
+        data=LeRobotTronDataConfig(
+            default_prompt="Put the banana on the plate.",
+            use_delta_joint_actions=False,
+            adapt_to_pi=False,
+            repack_transforms=_tron2_repack_transforms(),
+        )
+    ),
     #
     # Inference Aloha configs.
     #
