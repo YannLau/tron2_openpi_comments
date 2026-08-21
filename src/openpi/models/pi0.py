@@ -26,6 +26,14 @@ RTC（Real-Time Chunking）概述：
 动作，同时模型在后台继续生成后续动作。有两种实现方式：
 1. 推理时 RTC：使用 VJP 计算前缀引导修正（Kinetix 方法），训练时无需特殊处理
 2. 训练时 RTC：在训练时就模拟延迟，推理时直接用（更快，但需要专门训练）
+
+本文件的阅读顺序（新手建议）：
+1. 先读上方「流匹配」与「时间约定」——不理解 t 的方向（t=1 噪声 → t=0 目标），后面全是错的；
+2. 读 `make_attn_mask` 与 `posemb_sincos`：两个独立小工具，理解「注意力块（前缀双向 / 动作因果）」和「时间编码」两个概念；
+3. 读 `Pi0.__init__`：了解模型由「PaliGemma（视觉+语言，VLM 专家 + 动作专家共享参数）」+「若干投影层」组成；
+4. 读 `embed_prefix` / `embed_suffix`：理解哪些 token 进前缀（条件，双向注意力、可缓存 KV）、哪些进后缀（要预测的动作，因果注意力）；
+5. 读 `compute_loss`：训练时如何构造带噪样本 x_t、让模型学向量场 v_t（先跳过 RTC 分支）；
+6. 最后读 `sample_actions` 及两个 `_sample_actions_*` 辅助方法：推理时如何从噪声去噪，以及 RTC 的两种实现。
 """
 
 import logging
@@ -304,7 +312,11 @@ class Pi0(_model.BaseModel):
         # 遍历所有相机/图像源（如 front, left, right, wrist 等）
         for name in obs.images:
             # SigLIP 编码图像 → 输出 (b, num_patches, embed_dim) 的视觉 token
-            # train=False: 图像编码器在推理和训练时都固定（不参与梯度更新）
+            # train=False：只是让图像编码器前向传播保持确定性（关闭 dropout 等随机操作）——
+            #   图像增强已在 preprocess_observation 阶段做完，编码器内部无需随机性。
+            #   注意：这**不代表**冻结权重！梯度仍会反向传播，pi0 微调默认是端到端训练
+            #   整个 PaliGemma（含图像编码器）。真正的参数冻结由配置里的 get_freeze_filter 决定。
+            # 返回值 (image_tokens, _) 中 `_` 是中间层激活（供可视化/分析用），这里直接丢弃。
             image_tokens, _ = self.PaliGemma.img(obs.images[name], train=False)
 
             tokens.append(image_tokens)
@@ -398,6 +410,10 @@ class Pi0(_model.BaseModel):
             time_emb = time_emb_flat.reshape(batch_size, self.action_horizon, emb_dim)  # (b, H, emb)
 
         # ========== 时间条件注入（两种策略） ==========
+        # 注意：pi05 模式下本函数完全用不到 obs —— 状态（state）在数据变换阶段已被分词
+        # 拼进 prompt（见 transforms.TokenizePrompt 的 discrete_state_input=True），由前缀
+        # embed_prefix 当作语言 token 处理。这正是 pi0_config 里
+        # 「pi05：state 作为离散语言 token」这一架构区别。
         if self.pi05:
             # π₀.₅: 通过 adarms（自适应 RMS Norm）注入时间条件
             # adarms 是 Gemma 每一层 RMS Norm 的调节向量，让时间信息
@@ -481,6 +497,11 @@ class Pi0(_model.BaseModel):
         Returns:
             形状 (*b, H) 的损失值（每个 batch 元素的每个动作位置的损失）
         """
+        # 整个函数分两大块，模型前向传播完全一样，只有「时间」的构造方式不同：
+        #   1. RTC 训练分支（if ... return）：每个动作位置一个时间，前 delay 步设为 t=0
+        #      （已提交/干净），并把这些位置的损失清零；
+        #   2. 标准路径：整个 batch 共享一个标量时间 t。
+        # 只想理解基础流匹配的新手，建议先跳过 RTC 分支，直接读后半段标准路径。
         # 分割随机数
         preprocess_rng, noise_rng, time_rng = jax.random.split(rng, 3)
 
@@ -574,6 +595,10 @@ class Pi0(_model.BaseModel):
         attn_mask = make_attn_mask(input_mask, ar_mask)
         positions = jnp.cumsum(input_mask, axis=1) - 1
 
+        # LLM 前向传播：传入 [prefix_tokens, suffix_tokens] 这个「两条输入」的列表。
+        # Gemma Module 按 configs 顺序依次处理每条输入（列表第 0 个 → VLM 专家，第 1 个 → 动作专家），
+        # 返回同样长度的输出列表。adarms_cond=[None, adarms_cond] 按同一索引对应：
+        #   前缀用 None（VLM 专家不需要时间条件），后缀用时间条件向量（动作专家需要）。
         (prefix_out, suffix_out), _ = self.PaliGemma.llm(
             [prefix_tokens, suffix_tokens], mask=attn_mask, positions=positions, adarms_cond=[None, adarms_cond]
         )
@@ -798,6 +823,8 @@ class Pi0(_model.BaseModel):
             # ========== 核心：固定已提交位置 ==========
             # 将前 inference_delay 个位置强制设为上一 chunk 的动作
             # 这些位置不做去噪——它们已经是"正确答案"
+            # committed_mask (1, H) 经 [:, :, None] 广播成 (1, H, 1)，
+            # 与 prev_chunk_left_over / x_t 的 (b, H, ad) 按元素广播（batch 维也广播）。
             x_t = jnp.where(committed_mask[:, :, None], prev_chunk_left_over, x_t)
 
             # 逐位置时间：已提交位置 time=0（干净/目标），其余位置用当前 time
@@ -1002,9 +1029,11 @@ class Pi0(_model.BaseModel):
             tau = 1.0 - time
             one_minus_tau = time  # = 1 - tau（在 Kinetix 约定中）
 
-            # inv_r² = (1-tau)² + tau²/(1-tau)²
-            # 这是流匹配时间步的自适应缩放因子
-            # 当 t 接近 0 或 1 时缩放很大（信号弱），当中部时适中
+            # inv_r² = ((1-tau)² + tau²) / ((1-tau)² + 1e-8)   ← 代码实现，分母加了防除零常数
+            # 这是流匹配时间步的自适应缩放因子（tau = 1 - time），行为如下：
+            #   time→0（去噪末端，tau→1）：分母 (1-tau)²→0，inv_r² 急剧放大；
+            #   time→1（去噪起点，tau→0）：inv_r² ≈ 1，缩放平缓。
+            # 它与下方 c 系数相乘共同决定引导强度 guidance_weight，最后裁切到上限。
             inv_r2 = (one_minus_tau**2 + tau**2) / (one_minus_tau**2 + 1e-8)
 
             # c = (1-tau)/tau：KL 散度相关的系数
