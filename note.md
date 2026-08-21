@@ -463,3 +463,55 @@ ema_decay=None  # 关闭 EMA
 | **默认值**       | 取决于应用                                       | `0.99`（过去 ~100 步的平均）     |
 
 所以虽然 EMA 公式本身不是深度学习，但**把它用在模型参数上做时间平滑**是深度学习训练中一个非常经典且普遍使用的技巧。你可以把它理解为：用信号处理的思路，解决优化过程中的随机噪声问题。
+
+
+
+# 请你告诉我，是否推理时设置的FPS帧率应该模型训练时所使用的lerobot数据集的采集帧率一致？  
+
+
+
+
+是的，应该保持一致。而且不只是"应该"，这直接决定了机器人动作的**时间尺度**是否与训练时一致。
+
+## 为什么必须一致
+
+**训练侧**：模型在训练时，每个 action 的"真实时间含义"是由数据集的 fps 决定的。看 `tron2_openpi/src/openpi/training/data_loader.py:159`：
+
+```python
+delta_timestamps={
+    key: [t / dataset_meta.fps for t in range(action_horizon)] for key in ...action_sequence_keys
+}
+```
+
+模型学到的是"在接下来每个 `1/fps` 秒里，动作应该是多少"。它学的不只是"动作是什么"，还包括"动作多快"。
+
+**推理侧**：`pi_client_rtc.py` 的 consumer 循环按 `action_interval = 1.0 / fps` 每周期执行一个动作，并且 `env.step()` 里 `eta_default = 1/fps`（`env.py:120,206`）——即每个动作被插值在 `1/fps` 秒内走完。
+
+所以 `client.fps` 和训练集的 `dataset_meta.fps` 就是同一个"节拍器"：
+
+- **推理 fps > 训练 fps** → 每个动作被压缩执行，动作被"快进"，尤其在执行 action chunk 时容易过冲、抖动；
+- **推理 fps < 训练 fps** → 动作被"慢放"，整体迟缓、响应变钝。
+
+对接触类、时序敏感的任务影响尤其明显。
+
+## 三个容易混淆的频率，要分清
+
+| 频率                          | 是什么                               | 要不要等于训练 fps                             |
+| ----------------------------- | ------------------------------------ | ---------------------------------------------- |
+| `client.fps`（默认 30.0）     | 策略/控制频率，每 1/fps 秒发一个动作 | **要等于** `dataset_meta.fps`                  |
+| `publish_rate`（默认 300 Hz） | 底层指令插值发布频率                 | 不用，它只是在高频平滑策略动作                 |
+| 相机 fps（60 或 30）          | 图像采集                             | 不必严格相等，但要能按策略频率提供**新鲜**观测 |
+
+关键点：训练数据集的那个 fps 指的是 LeRobot 里**重采样后的 fps**（`dataset_meta.fps`），不是相机原始采集率——原始采集可以高于它，LeRobot 会重采样。
+
+## 你该怎么做
+
+1. 查一下你训练数据集的 `dataset_meta.fps`：
+   ```python
+   from lerobot import LeRobotDatasetMetadata
+   print(LeRobotDatasetMetadata("你的/repo_id").fps)
+   ```
+2. 把 deploy YAML 里的 `client.fps` 设成同一个值（当前 TRON2 默认是 30.0）。
+3. 如果你想用不同频率跑推理，必须先把训练数据按目标频率重采样再训练，而不是只改推理端——否则模型学的时间尺度就是错的。
+
+一句话总结：**`client.fps`（策略输出频率）== 训练数据集重采样 fps（`dataset_meta.fps`）；`publish_rate` 和相机帧率是另外两回事。**
