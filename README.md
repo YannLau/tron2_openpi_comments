@@ -48,7 +48,7 @@ released.
 | --- | --- | --- | --- |
 | Candy | [TRON2 OpenPI Candy user guide](https://cwjgfm21di.feishu.cn/wiki/NA5Rw1dWPiu6dwkFAfTcnaFLnQf) | [Hugging Face](https://huggingface.co/limx-tron2/tron2-openpi-models) / [ModelScope](https://modelscope.cn/models/limx-tron2/tron2-openpi-models) | `configs/deploy/candy_server.yaml`, `configs/deploy/candy_client.yaml` |
 | Cloth | [TRON2 OpenPI Cloth user guide](https://cwjgfm21di.feishu.cn/wiki/AsuRwJQ94igFPvkcyatctA4JnTc) | [Hugging Face](https://huggingface.co/limx-tron2/tron2-openpi-models) / [ModelScope](https://modelscope.cn/models/limx-tron2/tron2-openpi-models) | `configs/deploy/cloth_server.yaml`, `configs/deploy/cloth_client.yaml` |
-| Sort | [TRON2 OpenPI Sort user guide](https://cwjgfm21di.feishu.cn/wiki/PTpAwY597isKvXkJFq3csvLbnMh) | [Hugging Face](https://huggingface.co/limxdynamics/tron2-openpi-models) | `configs/deploy/sort_client.yaml`, `configs/deploy/sort_server.yaml` |
+| Sort | [TRON2 OpenPI Sort user guide](https://cwjgfm21di.feishu.cn/wiki/PTpAwY597isKvXkJFq3csvLbnMh) | [Hugging Face](https://huggingface.co/limxdynamics/tron2-openpi-models) / [ModelScope](https://modelscope.cn/models/limx-tron2/tron2-openpi-models) | `configs/deploy/sort_client.yaml`, `configs/deploy/sort_server.yaml` |
 
 Model weights and checkpoints are not stored in this repository. Download the
 weights from the linked model repository, then set the actual checkpoint path in
