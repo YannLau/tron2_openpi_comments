@@ -115,7 +115,7 @@ bridge:
   image_max_fps: 0
   align_max_delay_ms: 200
   verify_tls: false
-  save_debug_images: true
+  save_debug_images: false
   debug_image_dir: debug_images
 
 camera:
