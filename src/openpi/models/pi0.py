@@ -110,7 +110,11 @@ def make_attn_mask(input_mask, mask_ar):
 @at.typecheck
 def posemb_sincos(
     pos: at.Real[at.Array, " b"], embedding_dim: int, min_period: float, max_period: float
-) -> at.Float[at.Array, "b {embedding_dim}"]:
+) -> at.Float[at.Array, "b {embedding_dim}"]: 
+    
+    # 返回类型注解等效于“形状为 (b, embedding_dim) 的浮点数组”，
+    # 其中第二维必须和函数入参 embedding_dim 一致。
+    
     """计算正弦-余弦位置编码（Sinusoidal Positional Embedding）。
 
     这是一个标准的位置编码方法（类似 Transformer 中的位置编码），

@@ -208,7 +208,14 @@ def preprocess_observation(
     if not set(image_keys).issubset(observation.images):
         raise ValueError(f"images dict missing keys: expected {image_keys}, got {list(observation.images)}")
 
-    # 批量形状（去掉 state 最后一维 s），之后用来构造“全 True”的默认 mask。
+    # 批量形状（去掉 state 最后一维 s），得到batch size大小，之后用来构造“全 True”的默认 mask。
+    '''
+    为什么选择 state 来提取 batch shape？
+    因为 state 是 Observation 中必须存在**且永远带有明确 s 特征维度的字段
+    （图像维度可变且需要 resize，prompt 可能不存在）。
+    用它的形状剔除最后一维，是获取当前数据流中批量维度最稳妥、最通用的方法，
+    确保随后构造的 image_masks 与当前 batch 的维度完全对齐。
+    '''
     batch_shape = observation.state.shape[:-1]
 
     # 2) 逐路相机处理图像。
