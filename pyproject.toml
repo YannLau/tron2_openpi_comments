@@ -7,7 +7,9 @@ requires-python = ">=3.11"
 license = { file = "LICENSE" }
 dependencies = [
     "augmax>=0.3.4",
-    "av==14.4.0",
+    # 14.4.0 是 14.x 中唯一没发 wheel 的版本,只能源码编译且要求 FFmpeg>=7.1;
+    # 14.2.0 有 manylinux wheel(内置 FFmpeg 7.1),避免编译。
+    "av==14.2.0",
     "dm-tree>=0.1.8",
     "datasets==3.6.0",
     "einops>=0.8.0",
