@@ -12,6 +12,7 @@ import tyro
 
 from openpi.policies import policy as _policy
 from openpi.policies import policy_config as _policy_config
+from openpi.policies import tron2_policy
 from openpi.serving import websocket_policy_server
 from openpi.shared import deploy_config as _deploy_config
 from openpi.training import config as _config
@@ -133,13 +134,15 @@ def _with_state_dim(train_config: _config.TrainConfig, state_dim: int | None) ->
     state_dim = int(state_dim)
     if state_dim <= 0:
         raise ValueError(f"state_dim must be positive, got {state_dim}")
-    if not hasattr(train_config.data, "state_dim"):
+    if not hasattr(train_config.data, "state_dim") or not hasattr(train_config.data, "action_dim"):
         logging.warning("Config %s does not support state_dim; ignoring override.", train_config.name)
         return train_config
 
-    data_config = dataclasses.replace(train_config.data, state_dim=state_dim)
+    tron2_policy.validate_tron2_dimensions(state_dim, state_dim)
+    data_config = dataclasses.replace(train_config.data, state_dim=state_dim, action_dim=state_dim)
     policy_metadata = dict(train_config.policy_metadata or {})
     policy_metadata["state_dim"] = state_dim
+    policy_metadata["action_dim"] = state_dim
     logging.info("Overriding TRON2 state/action output dim to %d from deploy config", state_dim)
     return dataclasses.replace(train_config, data=data_config, policy_metadata=policy_metadata)
 
@@ -172,10 +175,27 @@ def _get_train_config(
     return train_config
 
 
+def _create_trained_policy(
+    train_config: _config.TrainConfig,
+    checkpoint_dir: str,
+    *,
+    default_prompt: str | None,
+) -> _policy.Policy:
+    policy = _policy_config.create_trained_policy(
+        train_config,
+        checkpoint_dir,
+        default_prompt=default_prompt,
+    )
+    if hasattr(train_config.data, "state_dim") and hasattr(train_config.data, "action_dim"):
+        policy.metadata.setdefault("state_dim", int(train_config.data.state_dim))
+        policy.metadata.setdefault("action_dim", int(train_config.data.action_dim))
+    return policy
+
+
 def create_default_policy(env: EnvMode, *, default_prompt: str | None = None) -> _policy.Policy:
     """Create a default policy for the given environment."""
     if checkpoint := DEFAULT_CHECKPOINT.get(env):
-        return _policy_config.create_trained_policy(
+        return _create_trained_policy(
             _get_train_config(checkpoint.config), checkpoint.dir, default_prompt=default_prompt
         )
     raise ValueError(f"Unsupported environment mode: {env}")
@@ -209,7 +229,7 @@ def create_policy(args: Args, config_profile: dict) -> _policy.Policy:
                 state_dim=state_dim,
                 use_delta_joint_actions=use_delta_joint_actions,
             )
-            return _policy_config.create_trained_policy(
+            return _create_trained_policy(
                 train_config,
                 args.policy.dir,
                 default_prompt=default_prompt,
@@ -227,7 +247,7 @@ def create_policy(args: Args, config_profile: dict) -> _policy.Policy:
                     state_dim=state_dim,
                     use_delta_joint_actions=use_delta_joint_actions,
                 )
-                return _policy_config.create_trained_policy(
+                return _create_trained_policy(
                     train_config,
                     str(checkpoint_dir),
                     default_prompt=default_prompt,

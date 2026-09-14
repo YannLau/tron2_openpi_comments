@@ -9,6 +9,7 @@ from typing import Any
 import yaml
 
 import openpi.models.pi0_config as pi0_config
+import openpi.policies.tron2_policy as tron2_policy
 from openpi.training import config as _config
 import openpi.training.weight_loaders as weight_loaders
 import openpi.transforms as _transforms
@@ -26,6 +27,7 @@ class Tron2TaskConfig:
     fsdp_devices: int = 1
     action_horizon: int = 50
     state_dim: int = 16
+    action_dim: int = 16
     assets_base_dir: str = "./assets"
     checkpoint_base_dir: str = "./checkpoints"
     cam_high_key: str = "observation.images.cam_high"
@@ -37,6 +39,9 @@ class Tron2TaskConfig:
     adapt_to_pi: bool = False
     use_delta_joint_actions: bool = False
     rtc_training_simulated_delay: int | None = None
+
+    def __post_init__(self):
+        tron2_policy.validate_tron2_dimensions(self.state_dim, self.action_dim)
 
 
 def _read_yaml(path: str | pathlib.Path) -> dict[str, Any]:
@@ -91,6 +96,7 @@ def create_train_config(path: str | pathlib.Path, *, exp_name: str | None = None
             use_delta_joint_actions=task.use_delta_joint_actions,
             adapt_to_pi=task.adapt_to_pi,
             state_dim=task.state_dim,
+            action_dim=task.action_dim,
             repack_transforms=repack_transforms,
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader(task.weight_loader),

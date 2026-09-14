@@ -15,6 +15,7 @@ STEPS=20000
 SAVE_INTERVAL=5000
 BATCH_SIZE=32
 ACTION_HORIZON=50
+PHYSICAL_DIM=16
 USE_DELTA=false
 RTC_DELAY=""
 PROMPT_FROM_TASK=false
@@ -65,8 +66,9 @@ Options:
   --save-interval N     Checkpoint interval (default: 5000)
   --batch-size N        Global batch size (default: 32)
   --action-horizon N    Action horizon (default: 50)
+  --physical-dim N      TRON2 state/action dimension (default: 16; valid: 1..32)
   --rtc-delay N         Enable training-time RTC with this simulated delay
-  --delta               Train with delta joint actions
+  --delta               Train with delta joint actions (ServoJ + gripper only)
   --max-frames N        Maximum frames used for normalization statistics
   --skip-norm           Skip normalization-statistics computation
   --name NAME           Override the generated training config name
@@ -94,6 +96,11 @@ Local custom paths example:
     --data-dir /path/to/datasets --repo-id my_dataset \
     --weight /path/to/checkpoint/params --output-dir /path/to/output \
     --exp example --prompt "perform the configured task" --max-frames 100000
+
+19D chassis/lifter example:
+  scripts/cloud_train_entrypoint_portable.sh \
+    --repo-id mobile_dataset --exp mobile_task \
+    --prompt-from-task --physical-dim 19 --max-frames 100000
 EOF
 }
 
@@ -234,6 +241,7 @@ while [ "$#" -gt 0 ]; do
     --save-interval) require_value "$1" "${2:-}"; SAVE_INTERVAL="$2"; shift 2 ;;
     --batch-size) require_value "$1" "${2:-}"; BATCH_SIZE="$2"; shift 2 ;;
     --action-horizon) require_value "$1" "${2:-}"; ACTION_HORIZON="$2"; shift 2 ;;
+    --physical-dim) require_value "$1" "${2:-}"; PHYSICAL_DIM="$2"; shift 2 ;;
     --rtc-delay) require_value "$1" "${2:-}"; RTC_DELAY="$2"; shift 2 ;;
     --delta) USE_DELTA=true; shift ;;
     --prompt-from-task) PROMPT_FROM_TASK=true; shift ;;
@@ -257,6 +265,9 @@ require_positive_integer --steps "$STEPS"
 require_positive_integer --save-interval "$SAVE_INTERVAL"
 require_positive_integer --batch-size "$BATCH_SIZE"
 require_positive_integer --action-horizon "$ACTION_HORIZON"
+if ! [[ "$PHYSICAL_DIM" =~ ^[0-9]+$ ]] || [ "$PHYSICAL_DIM" -lt 1 ] || [ "$PHYSICAL_DIM" -gt 32 ]; then
+  die "--physical-dim must be an integer between 1 and 32"
+fi
 [ -z "$MAX_FRAMES" ] || require_positive_integer --max-frames "$MAX_FRAMES"
 [ -z "$RTC_DELAY" ] || require_nonnegative_integer --rtc-delay "$RTC_DELAY"
 [ "$RESUME" = false ] || [ "$OVERWRITE" = false ] || die "--resume and --overwrite are mutually exclusive"
@@ -312,7 +323,7 @@ else
   "${PYTHON_COMMAND[@]}" - \
     "$TASK_CONFIG" "$NAME" "$REPO_ID" "$PROMPT" "$WEIGHT_PATH" \
     "$STEPS" "$SAVE_INTERVAL" "$BATCH_SIZE" "$ACTION_HORIZON" \
-    "$USE_DELTA" "$PROMPT_FROM_TASK" "$RTC_DELAY" "$OUTPUT_DIR" <<'PY'
+    "$PHYSICAL_DIM" "$USE_DELTA" "$PROMPT_FROM_TASK" "$RTC_DELAY" "$OUTPUT_DIR" <<'PY'
 import json
 import pathlib
 import sys
@@ -327,6 +338,7 @@ import sys
     save_interval,
     batch_size,
     action_horizon,
+    physical_dim,
     use_delta,
     prompt_from_task,
     rtc_delay,
@@ -342,6 +354,8 @@ config = {
     "save_interval": int(save_interval),
     "batch_size": int(batch_size),
     "action_horizon": int(action_horizon),
+    "state_dim": int(physical_dim),
+    "action_dim": int(physical_dim),
     "use_delta_joint_actions": use_delta == "true",
     "checkpoint_base_dir": output_dir,
     "assets_base_dir": str(pathlib.Path(output_dir) / "assets"),
@@ -355,6 +369,10 @@ with pathlib.Path(output_path).open("w", encoding="utf-8") as file:
     json.dump(config, file, indent=2)
     file.write("\n")
 PY
+fi
+
+if [ "$USE_DELTA" = true ]; then
+  log "WARNING: --delta is only valid for the ServoJ + gripper layout; do not use it for ServoP or BrainCo2."
 fi
 
 [[ "$EXP_NAME" =~ ^[A-Za-z0-9._-]+$ ]] || die "experiment name contains unsupported characters: $EXP_NAME"

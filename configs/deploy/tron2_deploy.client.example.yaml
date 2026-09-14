@@ -26,12 +26,22 @@ client:
   # from the robot WebSocket.
   observation_source: bridge
 
-  # State sent to the policy: 16 means arms+grippers, 18 includes head joints.
+  # Default compatibility layout: ServoJ arms and grippers. If any hardware
+  # module section below is enabled, state_dim/state_layout must exactly match
+  # the derived physical layout and the trained policy state/action dimensions.
   state_dim: 16
+  state_layout:
+    - left_arm
+    - left_gripper
+    - right_arm
+    - right_gripper
 
   # Policy action playback rate. publish_rate is the background ServoJ rate.
   fps: 30.0
   publish_rate: 300.0
+
+  # Maximum accepted age in seconds for modular robot state.
+  state_max_age: 0.5
 
   # Non-RTC client: number of policy chunks to run. Use null for unlimited.
   max_steps: null
@@ -111,6 +121,45 @@ robot:
   state_queue_maxlen: 7
   polling_rate: 200.0
   connection_timeout: 5.0
+
+# Hardware module examples. Leave all four sections commented to preserve the
+# default ServoJ + gripper behavior. Supplying any section opts into explicit
+# RobotModules and derives the physical state/action layout.
+#
+# ServoJ and ServoP are mutually exclusive. ServoP represents each arm as
+# [x, y, z, qw, qx, qy, qz]; quaternion values must not be linearly blended.
+# arm:
+#   mode: servop  # servoj | servop
+
+# Both arms use the same end-effector type. BrainCo2 command_time accepts one
+# scalar or six values, one per hand joint.
+# end_effector:
+#   type: brainco2  # gripper | brainco2
+#   command_time: 2.0
+#   polling_rate: 20.0
+#   state_timeout: 0.5
+
+# head.enabled controls policy I/O; robot.init_head independently controls the
+# optional initialization move.
+# head:
+#   enabled: true
+#   command_interval: null
+#   move_duration: null
+#   ack_timeout: 1.0
+
+# The mobile base adds [chassis_linear_x, chassis_angular_z, lifter_state].
+# Lifter commands are absolute millimetres, so enabling control requires
+# lifter_state_source: position_mm. raw_q is observation-only.
+# mobile_base:
+#   enabled: true
+#   auxiliary_polling_rate: 20.0
+#   lifter_state_source: position_mm  # raw_q | position_mm
+#   lifter_control_enabled: true
+#   lifter_command_interval: 0.1
+#   lifter_stream_velocity_mm_s: 80.0
+
+# ServoP and BrainCo2 require bridge.state_source: legacy when images still
+# come from Bridge. The public package supports only the WebSocket backend.
 
 bridge:
   # Required when client.observation_source is "bridge".

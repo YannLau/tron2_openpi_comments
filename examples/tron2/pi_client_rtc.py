@@ -21,17 +21,19 @@ import traceback
 from _external_tron2_env import ensure_external_tron2_env_on_path
 from deploy_config import PromptController
 from deploy_config import age_ms
+from deploy_config import arm_indices
 from deploy_config import bool_value
-from deploy_config import build_env_config
+from deploy_config import end_effector_indices
 from deploy_config import format_obs
 from deploy_config import load_deploy_config
 from deploy_config import policy_host
 from deploy_config import policy_port
 from deploy_config import record_paths
 from deploy_config import relative_sensor_time_s
-from deploy_config import section
+from deploy_config import resolve_deploy_config
 from deploy_config import select_profile_path
 from deploy_config import timestamp_ms
+from deploy_config import validate_server_physical_dimensions
 import numpy as np
 from openpi_client import websocket_client_policy
 
@@ -47,8 +49,6 @@ DEFAULT_ACTION_HORIZON = 50
 ACTION_DIM_RAW = 32
 INFERENCE_DELAY_HISTORY_SIZE = 10
 TRIGGER_POLL_INTERVAL_S = 0.005
-PROCESSED_ARM_INDICES = tuple(range(7)) + tuple(range(8, 15))
-PROCESSED_GRIPPER_INDICES = (7, 15)
 
 
 def _parse_args() -> argparse.Namespace:
@@ -127,8 +127,12 @@ class ActionPostprocessConfig:
 class ActionPostProcessor:
     """Optional client-side smoothing for executable processed actions."""
 
-    def __init__(self, config: ActionPostprocessConfig):
+    def __init__(self, config: ActionPostprocessConfig, scope_indices: dict[str, np.ndarray]):
         self.config = config
+        self._scope_indices = {
+            name: np.asarray(indices, dtype=np.int64)
+            for name, indices in scope_indices.items()
+        }
 
     @property
     def enabled(self) -> bool:
@@ -151,6 +155,22 @@ class ActionPostProcessor:
                 f"{self.config.ema_frames or 'all'}"
             )
         return "+".join(parts)
+
+    @property
+    def affects_arm(self) -> bool:
+        if not self.config.enabled:
+            return False
+        return (
+            self.config.boundary_blend_frames > 0
+            and self.config.boundary_blend_scope in {"arm", "all"}
+        ) or (
+            self.config.ema_alpha < 1.0
+            and self.config.ema_scope in {"arm", "all"}
+        )
+
+    def _indices(self, scope: str, action_dim: int) -> np.ndarray:
+        indices = self._scope_indices.get(scope, np.empty((0,), dtype=np.int64))
+        return indices[indices < action_dim]
 
     def apply(
         self,
@@ -202,7 +222,7 @@ class ActionPostProcessor:
             return 0
 
         action_dim = min(actions.shape[1], old_processed_leftover.shape[1])
-        dims = _processed_scope_indices(self.config.boundary_blend_scope, action_dim)
+        dims = self._indices(self.config.boundary_blend_scope, action_dim)
         if dims.size == 0:
             return 0
 
@@ -235,7 +255,7 @@ class ActionPostProcessor:
         action_dim = actions.shape[1]
         if old_processed_leftover is not None and len(old_processed_leftover) > 0:
             action_dim = min(action_dim, old_processed_leftover.shape[1])
-        dims = _processed_scope_indices(self.config.ema_scope, action_dim)
+        dims = self._indices(self.config.ema_scope, action_dim)
         if dims.size == 0:
             return 0
 
@@ -252,7 +272,7 @@ class ActionPostProcessor:
         return count
 
 
-def _resolve_action_postprocess(client_profile: dict) -> ActionPostProcessor:
+def _resolve_action_postprocess(client_profile: dict, resolved) -> ActionPostProcessor:
     raw_config = client_profile.get("rtc_action_postprocess", {}) or {}
     if not isinstance(raw_config, dict):
         raise ValueError("client.rtc_action_postprocess must be a mapping when provided.")
@@ -276,24 +296,28 @@ def _resolve_action_postprocess(client_profile: dict) -> ActionPostProcessor:
         ("boundary_blend_scope", config.boundary_blend_scope),
         ("ema_scope", config.ema_scope),
     ):
-        if scope not in {"arm", "gripper", "all"}:
-            raise ValueError(f"client.rtc_action_postprocess.{field_name} must be 'arm', 'gripper', or 'all'.")
+        if scope not in {"arm", "end_effector", "gripper", "all"}:
+            raise ValueError(
+                f"client.rtc_action_postprocess.{field_name} must be 'arm', 'end_effector', or 'all'."
+            )
     if not 0.0 < config.ema_alpha <= 1.0:
         raise ValueError("client.rtc_action_postprocess.ema_alpha must satisfy 0 < alpha <= 1.")
 
-    return ActionPostProcessor(config)
-
-
-def _processed_scope_indices(scope: str, action_dim: int) -> np.ndarray:
-    if scope == "all":
-        return np.arange(action_dim, dtype=np.int64)
-    if scope == "arm":
-        indices = PROCESSED_ARM_INDICES
-    elif scope == "gripper":
-        indices = PROCESSED_GRIPPER_INDICES
-    else:
-        return np.empty((0,), dtype=np.int64)
-    return np.asarray([idx for idx in indices if idx < action_dim], dtype=np.int64)
+    end_effectors = end_effector_indices(resolved.layout)
+    processor = ActionPostProcessor(
+        config,
+        {
+            "arm": arm_indices(resolved.layout),
+            "end_effector": end_effectors,
+            "gripper": end_effectors,
+            "all": np.arange(resolved.layout.dim, dtype=np.int64),
+        },
+    )
+    if resolved.modules is not None and resolved.modules.arm == "servop" and processor.affects_arm:
+        raise ValueError(
+            "ServoP RTC action post-processing cannot linearly blend arm pose/quaternion values"
+        )
+    return processor
 
 
 def warmup_rtc(
@@ -609,11 +633,23 @@ def inference_producer(
         sys.exit(1)
 
 
+def _max_arm_jump(action, last_action, layout, *, arm_mode: str) -> tuple[int, float] | None:
+    """Return the largest ServoJ arm delta using the configured physical layout."""
+    if arm_mode == "servop":
+        return None
+    indices = arm_indices(layout)
+    error = np.abs(np.asarray(action)[indices] - np.asarray(last_action)[indices])
+    component_id = int(np.argmax(error))
+    return component_id, float(error[component_id])
+
+
 def control_consumer(
     env: Tron2Env,
     action_queue: ActionQueue,
     shutdown_event: Event,
     fps: float,
+    layout,
+    arm_mode: str,
     *,
     record_data: list | None = None,
     time_origin: float | None = None,
@@ -672,14 +708,11 @@ def control_consumer(
                         recovery_hold_action = None
 
                 if last_action is not None:
-                    arm_action = np.concatenate((action[:7], action[8:15]))
-                    last_arm_action = np.concatenate((last_action[:7], last_action[8:15]))
-                    error = np.abs(arm_action - last_arm_action)
-                    joint_id = int(np.argmax(error))
-                    max_diff = float(error[joint_id])
+                    jump = _max_arm_jump(action, last_action, layout, arm_mode=arm_mode)
+                    joint_id, max_diff = jump if jump is not None else (-1, 0.0)
                     if max_diff >= 0.5:
                         logger.warning(
-                            "[CONSUMER] Large action jump: joint %d diff=%.4f at step %d",
+                            "[CONSUMER] Large action jump: arm component %d diff=%.4f at step %d",
                             joint_id,
                             max_diff,
                             step_count,
@@ -724,7 +757,7 @@ def control_consumer(
         sys.exit(1)
 
 
-def _save_records(config_profile: dict, record_states: list, record_actions: list) -> None:
+def _save_records(config_profile: dict, layout, record_states: list, record_actions: list) -> None:
     action_save_path, state_save_path = record_paths(
         config_profile,
         action_key="rtc_action_output_path",
@@ -822,20 +855,8 @@ def _save_records(config_profile: dict, record_states: list, record_actions: lis
         "action_end_perf_s",
         "step_duration_ms",
     ]
-    state_header = ",".join(
-        state_meta_fields
-        + [f"L_arm_{i}" for i in range(7)]
-        + ["L_grip"]
-        + [f"R_arm_{i}" for i in range(7)]
-        + ["R_grip"]
-    )
-    action_header = ",".join(
-        action_meta_fields
-        + [f"L_arm_{i}" for i in range(7)]
-        + ["L_grip"]
-        + [f"R_arm_{i}" for i in range(7)]
-        + ["R_grip"]
-    )
+    state_header = ",".join(state_meta_fields + list(layout.field_names))
+    action_header = ",".join(action_meta_fields + list(layout.field_names))
 
     if record_states:
         state_array = np.vstack(
@@ -871,7 +892,8 @@ def main() -> None:
     args = _parse_args()
     profile_path = select_profile_path(args.profile, args.deploy_config)
     config_profile = load_deploy_config(profile_path)
-    client_profile = section(config_profile, "client")
+    resolved = resolve_deploy_config(config_profile)
+    client_profile = dict(resolved.client)
     if not bool_value(client_profile.get("rtc_enabled", False)):
         raise ValueError(
             "client.rtc_enabled is false or missing. Use examples/tron2/pi_client.py for synchronous inference."
@@ -881,13 +903,17 @@ def main() -> None:
     logging.getLogger().setLevel(getattr(logging, log_level, logging.INFO))
     logging.getLogger("tron2_env.rtc.action_queue").setLevel(logging.WARNING)
 
-    env_config = build_env_config(config_profile)
+    env_config = resolved.env_config
+    layout = resolved.layout
     fps = float(client_profile.get("fps", env_config.fps))
     rtc_guidance_enabled = bool_value(client_profile.get("rtc_guidance_enabled", True))
     rtc_guidance_weight = _resolve_guidance_weight(client_profile)
     trained_rtc_mode = bool_value(client_profile.get("trained_rtc_mode", False))
     obs_timeout_budget_s = float(client_profile.get("obs_timeout_budget_s", 5.0))
-    action_postprocessor = _resolve_action_postprocess(client_profile)
+    action_postprocessor = _resolve_action_postprocess(client_profile, resolved)
+    recovery_blend_frames = int(client_profile.get("obs_recovery_blend_frames", 6))
+    if resolved.modules is not None and resolved.modules.arm == "servop" and recovery_blend_frames:
+        raise ValueError("ServoP requires client.obs_recovery_blend_frames: 0")
 
     latency_stats = LatencyTracker()
     shutdown_event = Event()
@@ -910,6 +936,7 @@ def main() -> None:
         )
 
         server_meta = ws_client.get_server_metadata()
+        validate_server_physical_dimensions(server_meta, layout)
         rtc_enabled = bool(server_meta.get("rtc_enabled", False))
         if not rtc_enabled:
             raise RuntimeError(
@@ -995,12 +1022,13 @@ def main() -> None:
 
         consumer_thread = Thread(
             target=control_consumer,
-            args=(env, action_queue, shutdown_event, fps),
+            args=(env, action_queue, shutdown_event, fps, layout),
             kwargs={
+                "arm_mode": resolved.modules.arm if resolved.modules is not None else "servoj",
                 "record_data": record_actions,
                 "time_origin": time_origin,
                 "perf_origin": perf_origin,
-                "recovery_blend_frames": int(client_profile.get("obs_recovery_blend_frames", 6)),
+                "recovery_blend_frames": recovery_blend_frames,
             },
             daemon=True,
             name="Consumer",
@@ -1030,7 +1058,7 @@ def main() -> None:
             shutdown_event.set()
             producer_thread.join(timeout=5)
             consumer_thread.join(timeout=5)
-            _save_records(config_profile, record_states, record_actions)
+            _save_records(config_profile, layout, record_states, record_actions)
 
     logger.info("Cleanup completed")
 

@@ -21,6 +21,8 @@ transform、部署配置模板和 TRON2 真机客户端示例。
 - 可选的 Bridge 观测模式：从 TRON2 Bridge 获取图像和状态。
 - 可选的 legacy RealSense 观测模式：使用本机直连相机。
 - RTC 部署客户端，包含 warmup、观测超时恢复、队列诊断和可选动作平滑。
+- 模块化 TRON2 部署：支持 ServoJ/ServoP 双臂、夹爪/BrainCo2 双灵巧手、
+  头部以及底盘和升降台。
 - `packages/openpi-client/` 中的 OpenPI client 包。
 
 ## 本仓库不包含什么
@@ -167,7 +169,8 @@ client 字段：
 | `client.task` | 任务名，用于生成录制文件名。 |
 | `client.policy_host` / `client.policy_port` | 客户端看到的 policy server 地址。 |
 | `client.observation_source` | `bridge` 或 `legacy`。 |
-| `client.state_dim` | `16` 表示双臂和夹爪，`18` 表示额外包含头部关节。 |
+| `client.state_dim` | 物理 state/action 向量维度；必须与模块布局和训练配置一致。 |
+| `client.state_layout` | 平铺向量的组件顺序；显式模块配置时必须与模块推导结果一致。 |
 | `client.fps` | policy action 播放频率。 |
 | `client.publish_rate` | 后台 ServoJ 指令发送频率。 |
 | `client.max_steps` | 非 RTC 模式运行多少个 policy chunk；`null` 表示持续运行直到手动停止。 |
@@ -179,6 +182,34 @@ client 字段：
 | `robot.ip` / `robot.port` | TRON2 WebSocket 机器人控制器地址。 |
 | `bridge.host` | Bridge 观测模式使用的 TRON2 Bridge WebSocket 地址。 |
 | `camera.serial_to_name` | legacy 模式下 RealSense 序列号到 policy 相机名的映射。 |
+
+#### 模块化硬件布局
+
+通用 client 模板包含 `arm`、`end_effector`、`head` 和 `mobile_base` 配置示例。
+四个区块均不配置时，继续使用兼容旧任务的 ServoJ + 双夹爪布局；配置任一区块后，
+客户端会按显式模块推导布局并校验 `client.state_dim` 和 `client.state_layout`。
+
+| 模块组合 | 物理维度 |
+| --- | ---: |
+| ServoJ/ServoP + 双夹爪 | 16 |
+| ServoJ/ServoP + 双夹爪 + 头部 | 18 |
+| ServoJ/ServoP + 双夹爪 + 底盘/升降台 | 19 |
+| ServoJ/ServoP + 双夹爪 + 头部 + 底盘/升降台 | 21 |
+| ServoJ/ServoP + BrainCo2 双灵巧手 | 26 |
+| ServoJ/ServoP + BrainCo2 双灵巧手 + 头部 | 28 |
+| ServoJ/ServoP + BrainCo2 双灵巧手 + 底盘/升降台 | 29 |
+| ServoJ/ServoP + BrainCo2 双灵巧手 + 头部 + 底盘/升降台 | 31 |
+
+ServoJ 和 ServoP 每条手臂都占 7 维，但语义不同：ServoJ 是关节目标，ServoP 是
+`[x, y, z, qw, qx, qy, qz]` 末端位姿。ServoP 的四元数不得使用线性动作混合。
+BrainCo2 每只手占 6 维，必须配置 `end_effector.command_time`。底盘/升降台占 3 维：
+`[chassis_linear_x, chassis_angular_z, lifter_state]`。
+
+使用 Bridge 图像时，ServoP 或 BrainCo2 必须设置 `bridge.state_source: legacy`，让物理
+状态从机器人 WebSocket 读取。启用升降台控制时必须设置
+`mobile_base.lifter_state_source: position_mm`；`raw_q` 仅可用于观测。公开运行时只支持
+WebSocket 控制后端。完整字段和注释见
+`configs/deploy/tron2_deploy.client.example_CN.yaml`。
 
 `policy.repo_id` 必须和 checkpoint 内的 assets 目录一致：
 
@@ -278,6 +309,10 @@ export HF_LEROBOT_HOME=/path/to/datasets
 任务 YAML 中的 `fsdp_devices` 表示每个 FSDP shard 使用的设备数。单设备训练保持
 为 `1`；多设备训练时，该值必须能够整除当前进程可见的 JAX 设备总数。
 
+`state_dim` 和 `action_dim` 当前必须相等，且必须与数据集中的 state/action 宽度、
+归一化统计、checkpoint、server profile 的 `policy.state_dim` 以及 client 的物理布局
+保持一致。模块化任务可按上面的维度表选择数值。
+
 首次训练前先计算 normalization statistics：
 
 ```bash
@@ -294,6 +329,8 @@ uv run scripts/train_tron2_task.py \
 
 如需一条命令完成训练，可以使用 `scripts/cloud_train_entrypoint_portable.sh`。
 除非传入 `--skip-norm`，它会先计算 norm，再启动训练。
+该脚本的 `--physical-dim` 会同时设置生成任务配置中的 `state_dim` 和 `action_dim`，
+默认值为 `16`，有效范围为 1 到 32。
 
 云端/平台挂载模式假设数据和权重由平台挂载。按默认路径，`--repo-id input` 表示
 LeRobot 数据集位于 `/data/input/`，初始权重位于 `/data/checkpoint/params`，输出写到
@@ -320,6 +357,9 @@ scripts/cloud_train_entrypoint_portable.sh \
   --max-frames 100000
 ```
 
+例如 19D 底盘/升降台任务，在上述生成配置的命令中追加
+`--physical-dim 19`。16D 旧任务不传该参数即可保持原有默认值。
+
 也可以让一站式入口使用已经编辑好的任务 YAML。此模式下，YAML 控制 `repo_id`、
 `weight_loader`、`assets_base_dir` 和 `checkpoint_base_dir`；`--data-dir` 仍用于设置
 `HF_LEROBOT_HOME`：
@@ -334,8 +374,9 @@ scripts/cloud_train_entrypoint_portable.sh \
 
 真实任务 YAML 已被 `.gitignore` 忽略；公开仓库只保留
 `configs/train/tron2_tasks/example.yaml`。模板支持 `repo_id`、prompt、数据列名、
-`action_horizon`、`state_dim`、`fsdp_devices`、base checkpoint 权重、输出路径，
-以及可选的 `prompt_from_task` 和 `rtc_training_simulated_delay`。
+`action_horizon`、`state_dim`、`action_dim`、`fsdp_devices`、base checkpoint
+权重、输出路径，以及可选的 `prompt_from_task` 和
+`rtc_training_simulated_delay`。
 
 ## 网络部署边界
 
