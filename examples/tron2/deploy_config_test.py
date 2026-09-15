@@ -1,8 +1,14 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import deploy_config
 import numpy as np
 import pytest
+
+from openpi.training import config as training_config
+
+DEPLOY_CONFIG_DIR = Path(__file__).resolve().parents[2] / "configs" / "deploy"
 
 
 @pytest.mark.parametrize(
@@ -102,3 +108,70 @@ def test_server_dimension_mismatch_is_rejected():
             {"state_dim": 16, "action_dim": 16},
             resolved.layout,
         )
+
+
+@pytest.mark.parametrize(
+    ("profile_name", "dimension", "components", "arm", "end_effector", "head", "mobile_base"),
+    [
+        (
+            "brainco_client.yaml",
+            26,
+            ("left_arm", "left_hand", "right_arm", "right_hand"),
+            "servop",
+            "brainco2",
+            False,
+            False,
+        ),
+        (
+            "chassis_client.yaml",
+            21,
+            ("left_arm", "left_gripper", "right_arm", "right_gripper", "head", "chassis"),
+            "servoj",
+            "gripper",
+            True,
+            True,
+        ),
+    ],
+)
+def test_public_modular_client_profiles_match_physical_layout(
+    profile_name,
+    dimension,
+    components,
+    arm,
+    end_effector,
+    head,
+    mobile_base,
+):
+    profile = deploy_config.load_deploy_profile(DEPLOY_CONFIG_DIR / profile_name)
+    resolved = deploy_config.resolve_deploy_config(profile)
+
+    assert resolved.layout.dim == dimension
+    assert resolved.layout.components == components
+    assert resolved.modules is not None
+    assert resolved.modules.arm == arm
+    assert resolved.modules.end_effector == end_effector
+    assert resolved.modules.head is head
+    assert resolved.modules.mobile_base is mobile_base
+
+    if end_effector == "brainco2":
+        assert resolved.brainco2_config is not None
+        assert resolved.brainco2_config.command_time == (1.0,) * 6
+        assert resolved.env_config.bridge_state_source == "legacy"
+    if mobile_base:
+        assert resolved.env_config.lifter_state_source == "position_mm"
+        assert resolved.env_config.lifter_control_enabled is True
+
+
+@pytest.mark.parametrize(
+    ("profile_name", "dimension"),
+    [("brainco_server.yaml", 26), ("chassis_server.yaml", 21)],
+)
+def test_public_modular_server_profiles_use_registered_generic_config(profile_name, dimension):
+    profile = deploy_config.load_deploy_profile(DEPLOY_CONFIG_DIR / profile_name)
+    policy = deploy_config.section(profile, "policy")
+
+    assert policy["config"] == "pi05_tron2_example"
+    assert training_config.get_config(policy["config"]).name == policy["config"]
+    assert policy["state_dim"] == dimension
+    assert policy["action_horizon"] == 30
+    assert policy["use_delta_joint_actions"] is False

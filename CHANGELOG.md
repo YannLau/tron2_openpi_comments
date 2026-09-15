@@ -25,6 +25,8 @@ This file records user-visible and repository-governance changes.
 - State/action dimension negotiation between task configs, policy serving, and
   deployment clients.
 - `--physical-dim` support in the portable one-command training entrypoint.
+- Public deployment profiles for the 26D ServoP/BrainCo2 layout and the 21D
+  ServoJ/gripper/head/chassis/lifter layout.
 
 ### Changed
 
