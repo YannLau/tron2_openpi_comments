@@ -35,3 +35,8 @@ This file records user-visible and repository-governance changes.
   lowercase letter.
 - Made RTC action postprocessing and recording layout-aware, including safe
   handling for ServoP quaternion actions and BrainCo2 hand slices.
+
+### Fixed
+
+- Stabilized quantile normalization for nearly constant state and action
+  dimensions to prevent amplified training targets and gradient spikes.

@@ -83,6 +83,12 @@ class RunningStats:
         variance = self._mean_of_squares - self._mean**2
         stddev = np.sqrt(np.maximum(0, variance))
         q01, q99 = self._compute_quantiles([0.01, 0.99])
+        # Ensure q99 > q01 by at least 3e-2 while keeping static dimensions centered.
+        min_range = 3e-2
+        center = (q01 + q99) / 2.0
+        half_range = np.maximum((q99 - q01) / 2.0, min_range / 2.0)
+        q01 = center - half_range
+        q99 = center + half_range
         return NormStats(mean=self._mean, std=stddev, q01=q01, q99=q99)
 
     def _adjust_histograms(self):
