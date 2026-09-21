@@ -22,12 +22,21 @@ client:
   # legacy：直接使用本机 RealSense 相机，机器人状态从机器人 WebSocket 获取。
   observation_source: bridge
 
-  # 发送给模型的状态维度：16 表示双臂和夹爪，18 表示额外包含头部关节。
+  # 默认兼容布局：双臂 ServoJ 和双夹爪。启用下方任一硬件模块后，
+  # state_dim/state_layout 必须与推导出的物理布局以及模型训练维度完全一致。
   state_dim: 16
+  state_layout:
+    - left_arm
+    - left_gripper
+    - right_arm
+    - right_gripper
 
   # policy 动作执行频率。publish_rate 是后台 ServoJ 指令发送频率。
   fps: 30.0
   publish_rate: 300.0
+
+  # 模块化机器人状态允许的最大数据年龄，单位秒。
+  state_max_age: 0.5
 
   # 普通非 RTC client 运行多少个 policy action chunk，null 表示持续运行直到手动停止。
   max_steps: null
@@ -106,6 +115,43 @@ robot:
   state_queue_maxlen: 7
   polling_rate: 200.0
   connection_timeout: 5.0
+
+# 硬件模块示例。保持下面四个部分为注释时，继续使用默认 ServoJ + 夹爪行为；
+# 配置任一模块后会启用显式 RobotModules，并据此推导物理 state/action 布局。
+#
+# ServoJ 与 ServoP 互斥。ServoP 每条手臂使用
+# [x, y, z, qw, qx, qy, qz]，四元数不能做线性混合。
+# arm:
+#   mode: servop  # servoj | servop
+
+# 双臂必须使用同一种末端执行器。BrainCo2 的 command_time 可以是一个标量，
+# 也可以是分别对应六个手指关节的六个值。
+# end_effector:
+#   type: brainco2  # gripper | brainco2
+#   command_time: 2.0
+#   polling_rate: 20.0
+#   state_timeout: 0.5
+
+# head.enabled 控制模型输入输出；robot.init_head 独立控制可选的初始化动作。
+# head:
+#   enabled: true
+#   command_interval: null
+#   move_duration: null
+#   ack_timeout: 1.0
+
+# 底盘模块增加 [chassis_linear_x, chassis_angular_z, lifter_state]。
+# 升降台控制使用绝对毫米值，因此启用控制时必须使用 position_mm；
+# raw_q 只能用于观测。
+# mobile_base:
+#   enabled: true
+#   auxiliary_polling_rate: 20.0
+#   lifter_state_source: position_mm  # raw_q | position_mm
+#   lifter_control_enabled: true
+#   lifter_command_interval: 0.1
+#   lifter_stream_velocity_mm_s: 80.0
+
+# 图像来自 Bridge 时，ServoP 和 BrainCo2 要求 bridge.state_source: legacy。
+# 开源包仅支持 WebSocket 控制后端。
 
 bridge:
   # client.observation_source 为 bridge 时需要配置。

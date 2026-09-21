@@ -1,0 +1,120 @@
+client:
+  task: chassis
+  policy_host: 127.0.0.1
+  policy_port: 8000
+  control_backend: websocket
+  observation_source: bridge
+
+  # 21D: dual ServoJ arms and grippers 16 + head 2 + chassis/lifter 3.
+  state_dim: 21
+  state_layout:
+    - left_arm
+    - left_gripper
+    - right_arm
+    - right_gripper
+    - head
+    - chassis
+
+  fps: 30.0
+  publish_rate: 300.0
+  state_max_age: 0.5
+  max_steps: null
+
+  rtc_enabled: true
+  duration: 0
+  execution_horizon: 10
+  delay: 6
+  rtc_guidance_enabled: false
+  rtc_guidance_weight: 10.0
+  trained_rtc_mode: true
+  obs_timeout_budget_s: 5.0
+  obs_recovery_blend_frames: 6
+  rtc_action_postprocess:
+    enabled: false
+    boundary_blend_frames: 0
+    boundary_blend_curve: smoothstep
+    boundary_blend_scope: arm
+    ema_alpha: 1.0
+    ema_frames: 0
+    ema_scope: arm
+
+  log_level: INFO
+  save_record: false
+  action_output_path: debug_images/tron2_action_data.csv
+  state_output_path: debug_images/tron2_state_data.csv
+  rtc_action_output_path: debug_images/tron2_rtc_action_data.csv
+  rtc_state_output_path: debug_images/tron2_rtc_state_data.csv
+  legacy_use_time_sync: false
+  prompt: null
+
+robot:
+  ip: 10.192.1.2
+  port: 5000
+  init_joints:
+    - 0.026899
+    - 0.2612
+    - -0.02709991
+    - -1.5477003
+    - 0.265
+    - 0.0180999
+    - -0.0614999
+    - 0.008999
+    - -0.269
+    - 0.02069998
+    - -1.5567001
+    - -0.254
+    - -0.02309972
+    - 0.06469989
+  init_head:
+    - 1.0467
+    - -0.0139998
+  state_queue_maxlen: 7
+  polling_rate: 200.0
+  connection_timeout: 5.0
+
+arm:
+  mode: servoj
+
+end_effector:
+  type: gripper
+
+head:
+  enabled: true
+  command_interval: null
+  move_duration: null
+  ack_timeout: 1.0
+
+mobile_base:
+  enabled: true
+  auxiliary_polling_rate: 20.0
+  lifter_state_source: position_mm
+  lifter_control_enabled: true
+  lifter_command_interval: 0.1
+  lifter_stream_velocity_mm_s: 80.0
+
+bridge:
+  host: wss://10.192.1.4
+  ws_path: /bridge/ws
+  # Bridge supplies the canonical 18D arm/gripper/head state; the runtime adds
+  # chassis and lifter feedback from the robot signaling interface.
+  state_source: bridge
+  image_max_fps: 0
+  align_max_delay_ms: 200
+  verify_tls: false
+  save_debug_images: false
+  debug_image_dir: debug_images
+
+camera:
+  serial_to_name:
+    HEAD_CAMERA_SERIAL: cam_high
+    LEFT_WRIST_CAMERA_SERIAL: cam_left_wrist
+    RIGHT_WRIST_CAMERA_SERIAL: cam_right_wrist
+  camera_names:
+    - cam_high
+    - cam_left_wrist
+    - cam_right_wrist
+  resolution: [480, 640, 3]
+  fps: 30
+  max_queue_size: 10
+  save_debug_images: false
+  debug_image_dir: debug_images

@@ -29,6 +29,7 @@ batch_size: 32
 fsdp_devices: 1
 action_horizon: 50
 state_dim: 16
+action_dim: 16
 
 # Training-time RTC. Set null or remove to disable.
 rtc_training_simulated_delay: 10

@@ -18,9 +18,9 @@ import openpi.models.pi0_config as pi0_config
 import openpi.models.pi0_fast as pi0_fast
 import openpi.models.tokenizer as _tokenizer
 import openpi.policies.aloha_policy as aloha_policy
-import openpi.policies.tron2_policy as tron2_policy
 import openpi.policies.droid_policy as droid_policy
 import openpi.policies.libero_policy as libero_policy
+import openpi.policies.tron2_policy as tron2_policy
 import openpi.shared.download as _download
 import openpi.shared.normalize as _normalize
 import openpi.training.droid_rlds_dataset as droid_rlds_dataset
@@ -280,11 +280,15 @@ class LeRobotAlohaDataConfig(DataConfigFactory):
 
 @dataclasses.dataclass(frozen=True)
 class LeRobotTronDataConfig(DataConfigFactory):
-    
+
     use_delta_joint_actions: bool = True
     default_prompt: str | None = None
     adapt_to_pi: bool = False
     state_dim: int = 16
+    action_dim: int = 16
+
+    def __post_init__(self):
+        tron2_policy.validate_tron2_dimensions(self.state_dim, self.action_dim)
 
     # Repack transforms.
     repack_transforms: tyro.conf.Suppress[_transforms.Group] = dataclasses.field(
@@ -305,9 +309,21 @@ class LeRobotTronDataConfig(DataConfigFactory):
 
     @override
     def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
+        base_config = self.create_base_config(assets_dirs, model_config)
+        tron2_policy.validate_tron2_norm_stats(
+            base_config.norm_stats,
+            state_dim=self.state_dim,
+            action_dim=self.action_dim,
+        )
         data_transforms = _transforms.Group(
-            inputs=[tron2_policy.Tron2Inputs(adapt_to_pi=self.adapt_to_pi)],
-            outputs=[tron2_policy.Tron2Outputs(adapt_to_pi=self.adapt_to_pi, output_dim=self.state_dim)],
+            inputs=[
+                tron2_policy.Tron2Inputs(
+                    adapt_to_pi=self.adapt_to_pi,
+                    state_dim=self.state_dim,
+                    action_dim=self.action_dim,
+                )
+            ],
+            outputs=[tron2_policy.Tron2Outputs(adapt_to_pi=self.adapt_to_pi, action_dim=self.action_dim)],
         )
         if self.use_delta_joint_actions:
             delta_action_mask = _transforms.make_bool_mask(7, -1, 7, -1)
@@ -319,7 +335,7 @@ class LeRobotTronDataConfig(DataConfigFactory):
         model_transforms = ModelTransformFactory(default_prompt=self.default_prompt)(model_config)
 
         return dataclasses.replace(
-            self.create_base_config(assets_dirs, model_config),
+            base_config,
             repack_transforms=self.repack_transforms,
             data_transforms=data_transforms,
             model_transforms=model_transforms,

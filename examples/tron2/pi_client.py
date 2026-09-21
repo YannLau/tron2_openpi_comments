@@ -7,8 +7,8 @@ import time
 
 from _external_tron2_env import ensure_external_tron2_env_on_path
 from deploy_config import PromptController
+from deploy_config import arm_indices
 from deploy_config import bool_value
-from deploy_config import build_env_config
 from deploy_config import format_obs
 from deploy_config import infer_with_timing
 from deploy_config import load_deploy_config
@@ -16,14 +16,20 @@ from deploy_config import policy_host
 from deploy_config import policy_port
 from deploy_config import positive_int_or_none
 from deploy_config import record_paths
-from deploy_config import section
+from deploy_config import resolve_deploy_config
 from deploy_config import select_profile_path
+from deploy_config import validate_server_physical_dimensions
 import numpy as np
 from openpi_client import websocket_client_policy
 
 ensure_external_tron2_env_on_path()
 
 from tron2_env import Tron2Env
+
+
+def _arm_values(vector, layout) -> np.ndarray:
+    """Extract both arm components without assuming end-effector widths."""
+    return np.asarray(vector)[arm_indices(layout)]
 
 
 def _parse_args() -> argparse.Namespace:
@@ -64,13 +70,15 @@ def main() -> None:
     args = _parse_args()
     profile_path = select_profile_path(args.profile, args.deploy_config)
     config_profile = load_deploy_config(profile_path)
-    client_profile = section(config_profile, "client")
+    resolved = resolve_deploy_config(config_profile)
+    client_profile = dict(resolved.client)
     if bool_value(client_profile.get("rtc_enabled", False)):
         raise ValueError(
             "client.rtc_enabled is true. Use examples/tron2/pi_client_rtc.py for RTC deployment."
         )
 
-    env_config = build_env_config(config_profile)
+    env_config = resolved.env_config
+    layout = resolved.layout
     max_steps = positive_int_or_none(
         client_profile.get("max_steps", client_profile.get("max_inferences", 100)),
         field_name="client.max_steps",
@@ -90,15 +98,17 @@ def main() -> None:
     record_action: list[np.ndarray] = []
 
     with Tron2Env(env_config) as env:
-        env.reset()
+        reset_obs = env.reset()
 
         ws_client_policy = websocket_client_policy.WebsocketClientPolicy(
             host=policy_host(client_profile),
             port=policy_port(client_profile),
         )
+        validate_server_physical_dimensions(ws_client_policy.get_server_metadata(), layout)
 
         t = 0
-        last_action = env.last_action[:14] if env.last_action is not None else None
+        last_action = _arm_values(reset_obs["state"], layout)
+        check_arm_jumps = resolved.modules is None or resolved.modules.arm == "servoj"
 
         while max_steps is None or t < max_steps:
             print("\n\n", "#" * 10, "begin infer", t, "#" * 10)
@@ -129,17 +139,15 @@ def main() -> None:
             )
 
             actions = np.stack(ans["actions"], axis=0)
-            print("left start:", actions[0][:8])
-            print("right start:", actions[0][8:])
-            print("left end:", actions[-1][:8])
-            print("right end:", actions[-1][8:])
+            print("action start:", actions[0])
+            print("action end:", actions[-1])
 
             if save_record:
                 record_action.append(actions)
 
             for action in actions:
-                arm_action = np.concatenate((action[:7], action[8:15]))
-                if last_action is not None:
+                arm_action = _arm_values(action, layout)
+                if check_arm_jumps and last_action is not None:
                     error = np.abs(arm_action - last_action)
                     joint_id = int(np.argmax(error))
                     max_diff = float(error[joint_id])

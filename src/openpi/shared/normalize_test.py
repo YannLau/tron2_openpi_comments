@@ -41,3 +41,16 @@ def test_multiple_batch_dimensions():
 
     assert np.allclose(results.mean, expected_mean)
     assert np.allclose(results.std, expected_std)
+
+
+def test_quantile_range_has_minimum_width_for_nearly_constant_dimension():
+    arr = np.full((1000, 1), 1.492165, dtype=np.float32)
+    arr[0, 0] = 0.0
+
+    stats = normalize.RunningStats()
+    stats.update(arr)
+    results = stats.get_statistics()
+
+    assert results.q01 is not None
+    assert results.q99 is not None
+    assert results.q99[0] - results.q01[0] >= 3e-2 - 1e-12

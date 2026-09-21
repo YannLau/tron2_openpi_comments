@@ -41,12 +41,41 @@ def test_dry_run_generates_platform_task_config(tmp_path: pathlib.Path):
 
     assert result.returncode == 0, result.stderr
     assert '"repo_id": "input"' in result.stdout
+    assert '"state_dim": 16' in result.stdout
+    assert '"action_dim": 16' in result.stdout
     assert '"prompt":' not in result.stdout
     assert "Perform the configured manipulation task" not in result.stdout
     assert '"prompt_from_task": true' in result.stdout
     assert '"rtc_training_simulated_delay": 10' in result.stdout
     assert "scripts/compute_norm_stats.py --task-config" in result.stdout
     assert "scripts/train_tron2_task.py --task-config" in result.stdout
+
+
+def test_dry_run_generates_requested_state_and_action_dimensions(tmp_path: pathlib.Path):
+    result = _run_dry_run(
+        tmp_path,
+        "--prompt-from-task",
+        "--physical-dim",
+        "31",
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert '"state_dim": 31' in result.stdout
+    assert '"action_dim": 31' in result.stdout
+
+
+def test_generated_task_config_rejects_dimensions_above_supported_limit(tmp_path: pathlib.Path):
+    result = _run_dry_run(tmp_path, "--prompt-from-task", "--physical-dim", "33")
+
+    assert result.returncode != 0
+    assert "--physical-dim must be an integer between 1 and 32" in result.stderr
+
+
+def test_delta_warns_when_generating_a_modular_task_config(tmp_path: pathlib.Path):
+    result = _run_dry_run(tmp_path, "--prompt-from-task", "--physical-dim", "19", "--delta")
+
+    assert result.returncode == 0, result.stderr
+    assert "--delta is only valid for the ServoJ + gripper layout" in result.stdout
 
 
 def test_resume_does_not_overwrite_checkpoint(tmp_path: pathlib.Path):
