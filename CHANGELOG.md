@@ -35,6 +35,8 @@ This file records user-visible and repository-governance changes.
   lowercase letter.
 - Made RTC action postprocessing and recording layout-aware, including safe
   handling for ServoP quaternion actions and BrainCo2 hand slices.
+- Updated the BrainCo and chassis server profiles with their deployment
+  checkpoint paths.
 
 ### Fixed
 
