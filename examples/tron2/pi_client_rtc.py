@@ -74,8 +74,7 @@ from dataclasses import dataclass      # 轻量级数据类，用于配置对象
 import logging
 import math
 import sys
-from threading import Event
-from threading import Thread
+
 import time
 import traceback
 from threading import Event, Thread   # Event: 线程间信号; Thread: 线程

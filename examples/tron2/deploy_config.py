@@ -48,7 +48,6 @@ from typing import Any
 # einops：爱因斯坦求和约定的张量操作库
 #     这里用于 rearrange(图像, "h w c -> c h w")，即把通道维从最后一维移到第一维
 #     （例如 PIL/OpenCV 的 HWC 格式 → PyTorch 的 CHW 格式）
-from _external_tron2_env import ensure_external_tron2_env_on_path
 import einops
 # NumPy：Python 科学计算基础库，这里用于处理图像数组和关节角度数组
 import numpy as np

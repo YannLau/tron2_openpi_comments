@@ -52,7 +52,7 @@ from deploy_config import positive_int_or_none   # 安全解析"正整数或 Non
 from deploy_config import PromptController       # 运行时动态修改 prompt 的控制器
 from deploy_config import record_paths           # 生成录制数据的输出文件路径
 from deploy_config import section                # 从配置字典中提取子配置段落
-from _external_tron2_env import ensure_external_tron2_env_on_path
+
 from deploy_config import PromptController
 from deploy_config import arm_indices
 from deploy_config import bool_value
