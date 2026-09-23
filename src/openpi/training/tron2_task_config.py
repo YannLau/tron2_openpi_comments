@@ -47,6 +47,7 @@ import yaml
 #   weight_loaders       — 预训练权重的加载策略
 #   transforms           — 数据变换管道（如何从原始数据中提取和重组字段）
 import openpi.models.pi0_config as pi0_config
+import openpi.policies.tron2_policy as tron2_policy
 from openpi.training import config as _config
 import openpi.training.weight_loaders as weight_loaders
 import openpi.transforms as _transforms
@@ -119,7 +120,7 @@ class Tron2TaskConfig:
     # 16 = 14 个关节角度 + 2 个夹爪位置（或类似组合）
     # 这个值必须与实际数据中的状态维度匹配
     state_dim: int = 16
-
+    action_dim: int = 16
     # assets_base_dir：训练资源文件（如归一化统计量）的存放目录
     assets_base_dir: str = "./assets"
 
@@ -166,6 +167,9 @@ class Tron2TaskConfig:
     # 正整数 → 在训练的动作预测中引入对应步数的延迟
     # 这是 sim-to-real 迁移的关键技巧之一
     rtc_training_simulated_delay: int | None = None
+
+    def __post_init__(self):
+        tron2_policy.validate_tron2_dimensions(self.state_dim, self.action_dim)
 
 
 # ============================================================================
@@ -379,6 +383,7 @@ def create_train_config(path: str | pathlib.Path, *, exp_name: str | None = None
             use_delta_joint_actions=task.use_delta_joint_actions,
             adapt_to_pi=task.adapt_to_pi,
             state_dim=task.state_dim,
+            action_dim=task.action_dim,
             repack_transforms=repack_transforms,
         ),
 

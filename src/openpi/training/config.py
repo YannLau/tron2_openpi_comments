@@ -113,6 +113,7 @@ import openpi.training.optimizer as _optimizer  # 学习率/优化器配置
 import openpi.training.weight_loaders as weight_loaders  # 权重加载器（预训练初始化）
 import openpi.transforms as _transforms  # 全部数据变换原语
 
+
 # 模型类型（PI0 / PI05 / PI0_FAST）：用来区分三种模型家族的数据格式
 ModelType: TypeAlias = _model.ModelType
 # 参数过滤器的别名。单独起一个别名是为了绕开 tyro 直接使用
@@ -480,6 +481,7 @@ class LeRobotTronDataConfig(DataConfigFactory):
     """
 
     # 是否把关节角转成增量动作（TRON2 公开权重通常关闭，保持绝对角度）
+
     use_delta_joint_actions: bool = True
     # 观测里缺 prompt 时注入的默认任务指令
     default_prompt: str | None = None
@@ -487,6 +489,10 @@ class LeRobotTronDataConfig(DataConfigFactory):
     adapt_to_pi: bool = False
     # 状态/输出维度：16 = 双臂 + 夹爪；18 = 再加头部关节
     state_dim: int = 16
+    action_dim: int = 16
+
+    def __post_init__(self):
+        tron2_policy.validate_tron2_dimensions(self.state_dim, self.action_dim)
 
     # 默认 repack（单相机/通用字段映射）
     repack_transforms: tyro.conf.Suppress[_transforms.Group] = dataclasses.field(
@@ -508,9 +514,21 @@ class LeRobotTronDataConfig(DataConfigFactory):
     @override
     def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
         # TRON2 输入/输出变换；output_dim 用于把模型输出裁剪到 state_dim
+        base_config = self.create_base_config(assets_dirs, model_config)
+        tron2_policy.validate_tron2_norm_stats(
+            base_config.norm_stats,
+            state_dim=self.state_dim,
+            action_dim=self.action_dim,
+        )
         data_transforms = _transforms.Group(
-            inputs=[tron2_policy.Tron2Inputs(adapt_to_pi=self.adapt_to_pi)],
-            outputs=[tron2_policy.Tron2Outputs(adapt_to_pi=self.adapt_to_pi, output_dim=self.state_dim)],
+            inputs=[
+                tron2_policy.Tron2Inputs(
+                    adapt_to_pi=self.adapt_to_pi,
+                    state_dim=self.state_dim,
+                    action_dim=self.action_dim,
+                )
+            ],
+            outputs=[tron2_policy.Tron2Outputs(adapt_to_pi=self.adapt_to_pi, action_dim=self.action_dim)],
         )
         if self.use_delta_joint_actions:
             # TRON2 双臂各有 7 个关节维度；delta 掩码覆盖两组关节
@@ -523,7 +541,7 @@ class LeRobotTronDataConfig(DataConfigFactory):
         model_transforms = ModelTransformFactory(default_prompt=self.default_prompt)(model_config)
 
         return dataclasses.replace(
-            self.create_base_config(assets_dirs, model_config),
+            base_config,
             repack_transforms=self.repack_transforms,
             data_transforms=data_transforms,
             model_transforms=model_transforms,

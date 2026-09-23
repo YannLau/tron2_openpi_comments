@@ -80,6 +80,22 @@ import time
 import traceback
 from threading import Event, Thread   # Event: 线程间信号; Thread: 线程
 
+from _external_tron2_env import ensure_external_tron2_env_on_path
+from deploy_config import PromptController
+from deploy_config import age_ms
+from deploy_config import arm_indices
+from deploy_config import bool_value
+from deploy_config import end_effector_indices
+from deploy_config import format_obs
+from deploy_config import load_deploy_config
+from deploy_config import policy_host
+from deploy_config import policy_port
+from deploy_config import record_paths
+from deploy_config import relative_sensor_time_s
+from deploy_config import resolve_deploy_config
+from deploy_config import select_profile_path
+from deploy_config import timestamp_ms
+from deploy_config import validate_server_physical_dimensions
 import numpy as np
 
 # ---------------------------------------------------------------------------
@@ -134,16 +150,6 @@ INFERENCE_DELAY_HISTORY_SIZE = 10
 # Producer 线程轮询队列状态的间隔（秒）
 # 当队列太满（超过触发阈值）时，Producer 不会立即推理，而是等待
 TRIGGER_POLL_INTERVAL_S = 0.005
-
-# ---------------------------------------------------------------------------
-# 动作索引常量：用于后续处理（平滑、EMA）时区分机械臂关节和夹爪
-# ---------------------------------------------------------------------------
-# 双臂的关节索引：左臂 0-6（7 个关节）+ 右臂 8-14（7 个关节）= 14 维
-# 跳过索引 7（左夹爪）和索引 15（右夹爪）
-PROCESSED_ARM_INDICES = tuple(range(7)) + tuple(range(8, 15))
-
-# 夹爪索引：左夹爪=7，右夹爪=15
-PROCESSED_GRIPPER_INDICES = (7, 15)
 
 
 # =============================================================================
@@ -355,8 +361,12 @@ class ActionPostProcessor:
     两种机制可以叠加使用：先 Boundary Blend，再 EMA。
     """
 
-    def __init__(self, config: ActionPostprocessConfig):
+    def __init__(self, config: ActionPostprocessConfig, scope_indices: dict[str, np.ndarray]):
         self.config = config
+        self._scope_indices = {
+            name: np.asarray(indices, dtype=np.int64)
+            for name, indices in scope_indices.items()
+        }
 
     @property
     def enabled(self) -> bool:
@@ -388,6 +398,22 @@ class ActionPostProcessor:
                 f"{self.config.ema_frames or 'all'}"
             )
         return "+".join(parts)
+
+    @property
+    def affects_arm(self) -> bool:
+        if not self.config.enabled:
+            return False
+        return (
+            self.config.boundary_blend_frames > 0
+            and self.config.boundary_blend_scope in {"arm", "all"}
+        ) or (
+            self.config.ema_alpha < 1.0
+            and self.config.ema_scope in {"arm", "all"}
+        )
+
+    def _indices(self, scope: str, action_dim: int) -> np.ndarray:
+        indices = self._scope_indices.get(scope, np.empty((0,), dtype=np.int64))
+        return indices[indices < action_dim]
 
     def apply(
         self,
@@ -470,7 +496,7 @@ class ActionPostProcessor:
 
         # 确定哪些维度需要混合（由 scope 决定）
         action_dim = min(actions.shape[1], old_processed_leftover.shape[1])
-        dims = _processed_scope_indices(self.config.boundary_blend_scope, action_dim)
+        dims = self._indices(self.config.boundary_blend_scope, action_dim)
         if dims.size == 0:
             return 0
 
@@ -525,7 +551,7 @@ class ActionPostProcessor:
         action_dim = actions.shape[1]
         if old_processed_leftover is not None and len(old_processed_leftover) > 0:
             action_dim = min(action_dim, old_processed_leftover.shape[1])
-        dims = _processed_scope_indices(self.config.ema_scope, action_dim)
+        dims = self._indices(self.config.ema_scope, action_dim)
         if dims.size == 0:
             return 0
 
@@ -546,10 +572,7 @@ class ActionPostProcessor:
         return count
 
 
-# =============================================================================
-# 动作后处理配置解析
-# =============================================================================
-def _resolve_action_postprocess(client_profile: dict) -> ActionPostProcessor:
+def _resolve_action_postprocess(client_profile: dict, resolved) -> ActionPostProcessor:
     """从客户端配置中解析动作后处理配置。
 
     支持新旧两套配置键名：
@@ -598,38 +621,30 @@ def _resolve_action_postprocess(client_profile: dict) -> ActionPostProcessor:
         ("boundary_blend_scope", config.boundary_blend_scope),
         ("ema_scope", config.ema_scope),
     ):
-        if scope not in {"arm", "gripper", "all"}:
+        if scope not in {"arm", "end_effector", "gripper", "all"}:
             raise ValueError(
-                f"client.rtc_action_postprocess.{field_name} must be 'arm', 'gripper', or 'all'."
+                f"client.rtc_action_postprocess.{field_name} must be 'arm', 'end_effector', or 'all'."
             )
     if not 0.0 < config.ema_alpha <= 1.0:
         raise ValueError(
             "client.rtc_action_postprocess.ema_alpha must satisfy 0 < alpha <= 1."
         )
 
-    return ActionPostProcessor(config)
-
-
-def _processed_scope_indices(scope: str, action_dim: int) -> np.ndarray:
-    """根据 scope 返回应被后处理的动作维度索引。
-
-    Args:
-        scope:      范围 —— "all"（全部）、"arm"（仅关节）、"gripper"（仅夹爪）。
-        action_dim: 动作向量的总维度。
-
-    Returns:
-        需要处理的维度索引数组（0-indexed）。
-    """
-    if scope == "all":
-        return np.arange(action_dim, dtype=np.int64)
-    if scope == "arm":
-        indices = PROCESSED_ARM_INDICES     # (0-6, 8-14)
-    elif scope == "gripper":
-        indices = PROCESSED_GRIPPER_INDICES # (7, 15)
-    else:
-        return np.empty((0,), dtype=np.int64)
-    # 过滤掉超出 action_dim 的索引（安全措施）
-    return np.asarray([idx for idx in indices if idx < action_dim], dtype=np.int64)
+    end_effectors = end_effector_indices(resolved.layout)
+    processor = ActionPostProcessor(
+        config,
+        {
+            "arm": arm_indices(resolved.layout),
+            "end_effector": end_effectors,
+            "gripper": end_effectors,
+            "all": np.arange(resolved.layout.dim, dtype=np.int64),
+        },
+    )
+    if resolved.modules is not None and resolved.modules.arm == "servop" and processor.affects_arm:
+        raise ValueError(
+            "ServoP RTC action post-processing cannot linearly blend arm pose/quaternion values"
+        )
+    return processor
 
 
 # =============================================================================
@@ -1156,6 +1171,15 @@ def inference_producer(
         sys.exit(1)
 
 
+def _max_arm_jump(action, last_action, layout, *, arm_mode: str) -> tuple[int, float] | None:
+    """Return the largest ServoJ arm delta using the configured physical layout."""
+    if arm_mode == "servop":
+        return None
+    indices = arm_indices(layout)
+    error = np.abs(np.asarray(action)[indices] - np.asarray(last_action)[indices])
+    component_id = int(np.argmax(error))
+    return component_id, float(error[component_id])
+
 # =============================================================================
 # control_consumer —— 消费者线程
 # =============================================================================
@@ -1164,6 +1188,8 @@ def control_consumer(
     action_queue: ActionQueue,
     shutdown_event: Event,
     fps: float,
+    layout,
+    arm_mode: str,
     *,
     record_data: list | None = None,
     time_origin: float | None = None,
@@ -1290,18 +1316,11 @@ def control_consumer(
                 # 排除夹爪维度（索引 7 和 15），因为夹爪开合通常变化较大
                 # ------------------------------------------------------------------
                 if last_action is not None:
-                    # 提取双臂关节（不含夹爪）
-                    arm_action = np.concatenate((action[:7], action[8:15]))
-                    last_arm_action = np.concatenate(
-                        (last_action[:7], last_action[8:15])
-                    )
-                    error = np.abs(arm_action - last_arm_action)
-                    joint_id = int(np.argmax(error))
-                    max_diff = float(error[joint_id])
+                    jump = _max_arm_jump(action, last_action, layout, arm_mode=arm_mode)
+                    joint_id, max_diff = jump if jump is not None else (-1, 0.0)
                     if max_diff >= 0.5:
                         logger.warning(
-                            "[CONSUMER] Large action jump: joint %d diff=%.4f "
-                            "at step %d",
+                            "[CONSUMER] Large action jump: arm component %d diff=%.4f at step %d",
                             joint_id,
                             max_diff,
                             step_count,
@@ -1362,14 +1381,7 @@ def control_consumer(
         sys.exit(1)
 
 
-# =============================================================================
-# _save_records —— 保存录制数据到 CSV
-# =============================================================================
-def _save_records(
-    config_profile: dict,
-    record_states: list,
-    record_actions: list,
-) -> None:
+def _save_records(config_profile: dict, layout, record_states: list, record_actions: list) -> None:
     """将 Producer 和 Consumer 录制的时间序列数据保存为 CSV 文件。
 
     RTC 模式下的录制比同步模式更丰富：
@@ -1497,25 +1509,8 @@ def _save_records(
         "action_end_perf_s",
         "step_duration_ms",
     ]
-
-    # ------------------------------------------------------------------
-    # 构建 CSV 表头
-    # 格式：元数据字段 + L_arm_0 ... L_arm_6 + L_grip + R_arm_0 ... R_arm_6 + R_grip
-    # ------------------------------------------------------------------
-    state_header = ",".join(
-        state_meta_fields
-        + [f"L_arm_{i}" for i in range(7)]
-        + ["L_grip"]
-        + [f"R_arm_{i}" for i in range(7)]
-        + ["R_grip"]
-    )
-    action_header = ",".join(
-        action_meta_fields
-        + [f"L_arm_{i}" for i in range(7)]
-        + ["L_grip"]
-        + [f"R_arm_{i}" for i in range(7)]
-        + ["R_grip"]
-    )
+    state_header = ",".join(state_meta_fields + list(layout.field_names))
+    action_header = ",".join(action_meta_fields + list(layout.field_names))
 
     # ------------------------------------------------------------------
     # 写入 State 数据
@@ -1606,8 +1601,8 @@ def main() -> None:
     args = _parse_args()
     profile_path = select_profile_path(args.profile, args.deploy_config)
     config_profile = load_deploy_config(profile_path)
-    client_profile = section(config_profile, "client")
-
+    resolved = resolve_deploy_config(config_profile)
+    client_profile = dict(resolved.client)
     # 安全检查：RTC 客户端必须启用 rtc_enabled
     if not bool_value(client_profile.get("rtc_enabled", False)):
         raise ValueError(
@@ -1630,9 +1625,8 @@ def main() -> None:
     # ------------------------------------------------------------------
     # 第二步：提取配置参数
     # ------------------------------------------------------------------
-    env_config = build_env_config(config_profile)
-
-    # fps: 控制频率（Hz）
+    env_config = resolved.env_config
+    layout = resolved.layout
     fps = float(client_profile.get("fps", env_config.fps))
 
     # RTC 模式选择：
@@ -1645,9 +1639,11 @@ def main() -> None:
 
     # 观测获取超时总预算（秒）
     obs_timeout_budget_s = float(client_profile.get("obs_timeout_budget_s", 5.0))
-
     # 动作后处理器（客户端平滑）
-    action_postprocessor = _resolve_action_postprocess(client_profile)
+    action_postprocessor = _resolve_action_postprocess(client_profile, resolved)
+    recovery_blend_frames = int(client_profile.get("obs_recovery_blend_frames", 6))
+    if resolved.modules is not None and resolved.modules.arm == "servop" and recovery_blend_frames:
+        raise ValueError("ServoP requires client.obs_recovery_blend_frames: 0")
 
     # ------------------------------------------------------------------
     # 第三步：初始化基础设施
@@ -1686,6 +1682,7 @@ def main() -> None:
         #   - action_horizon: 动作窗口长度 H
         # ------------------------------------------------------------------
         server_meta = ws_client.get_server_metadata()
+        validate_server_physical_dimensions(server_meta, layout)
         rtc_enabled = bool(server_meta.get("rtc_enabled", False))
         if not rtc_enabled:
             raise RuntimeError(
@@ -1800,14 +1797,13 @@ def main() -> None:
         # Consumer 线程：负责"取动作 → 执行"
         consumer_thread = Thread(
             target=control_consumer,
-            args=(env, action_queue, shutdown_event, fps),
+            args=(env, action_queue, shutdown_event, fps, layout),
             kwargs={
+                "arm_mode": resolved.modules.arm if resolved.modules is not None else "servoj",
                 "record_data": record_actions,
                 "time_origin": time_origin,
                 "perf_origin": perf_origin,
-                "recovery_blend_frames": int(
-                    client_profile.get("obs_recovery_blend_frames", 6)
-                ),
+                "recovery_blend_frames": recovery_blend_frames,
             },
             daemon=True,
             name="Consumer",
@@ -1850,9 +1846,7 @@ def main() -> None:
             # join(timeout=5): 等待线程在 5 秒内退出
             producer_thread.join(timeout=5)
             consumer_thread.join(timeout=5)
-
-            # 保存录制的数据
-            _save_records(config_profile, record_states, record_actions)
+            _save_records(config_profile, layout, record_states, record_actions)
 
     logger.info("Cleanup completed")
 

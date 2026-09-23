@@ -19,9 +19,26 @@ This file records user-visible and repository-governance changes.
 - English and Chinese user guides for the public Cloth task.
 - YAML task configuration support for selecting the number of FSDP devices.
 - ModelScope as an additional public mirror for TRON2 OpenPI model weights.
+- Modular TRON2 training and deployment for ServoJ/ServoP arms,
+  gripper/BrainCo2 paired hands, head, chassis, and lifter layouts from 16D to
+  31D.
+- State/action dimension negotiation between task configs, policy serving, and
+  deployment clients.
+- `--physical-dim` support in the portable one-command training entrypoint.
+- Public deployment profiles for the 26D ServoP/BrainCo2 layout and the 21D
+  ServoJ/gripper/head/chassis/lifter layout.
 
 ### Changed
 
 - Standardized the English and Chinese README language navigation.
 - Normalized public TRON2 task config names to start their task suffix with a
   lowercase letter.
+- Made RTC action postprocessing and recording layout-aware, including safe
+  handling for ServoP quaternion actions and BrainCo2 hand slices.
+- Updated the BrainCo and chassis server profiles with their deployment
+  checkpoint paths.
+
+### Fixed
+
+- Stabilized quantile normalization for nearly constant state and action
+  dimensions to prevent amplified training targets and gradient spikes.

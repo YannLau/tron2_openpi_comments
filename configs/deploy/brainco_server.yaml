@@ -1,0 +1,22 @@
+policy:
+  # Generic registered TRON2 config. The fields below override task-specific
+  # dimensions and assets without requiring a hard-coded BrainCo config name.
+  config: pi05_tron2_example
+
+  # Must match the asset directory stored in the trained checkpoint.
+  repo_id: input
+
+  # Replace with the trained checkpoint step directory.
+  checkpoint_dir: checkpoints/pi05_tron2_beans/beans_h30_rtc_15000
+
+  # Used when the client does not provide a prompt.
+  default_prompt: Pour the beans into the container
+
+  record: false
+  action_horizon: 30
+  state_dim: 26
+  use_delta_joint_actions: false
+
+server:
+  host: 0.0.0.0
+  port: 8000

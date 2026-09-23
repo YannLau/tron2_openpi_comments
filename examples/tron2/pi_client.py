@@ -54,8 +54,8 @@ from deploy_config import record_paths           # 生成录制数据的输出�
 from deploy_config import section                # 从配置字典中提取子配置段落
 from _external_tron2_env import ensure_external_tron2_env_on_path
 from deploy_config import PromptController
+from deploy_config import arm_indices
 from deploy_config import bool_value
-from deploy_config import build_env_config
 from deploy_config import format_obs
 from deploy_config import infer_with_timing
 from deploy_config import load_deploy_config
@@ -63,8 +63,9 @@ from deploy_config import policy_host
 from deploy_config import policy_port
 from deploy_config import positive_int_or_none
 from deploy_config import record_paths
-from deploy_config import section
+from deploy_config import resolve_deploy_config
 from deploy_config import select_profile_path
+from deploy_config import validate_server_physical_dimensions
 import numpy as np
 from openpi_client import websocket_client_policy
 
@@ -76,6 +77,10 @@ ensure_external_tron2_env_on_path()
 
 from tron2_env import Tron2Env
 
+
+def _arm_values(vector, layout) -> np.ndarray:
+    """Extract both arm components without assuming end-effector widths."""
+    return np.asarray(vector)[arm_indices(layout)]
 
 # ===========================================================================
 # 命令行参数解析
@@ -186,8 +191,8 @@ def main() -> None:
     profile_path = select_profile_path(args.profile, args.deploy_config)
     # load_deploy_config 会读取 YAML 文件并返回一个扁平化的配置字典
     config_profile = load_deploy_config(profile_path)
-    client_profile = section(config_profile, "client")
-
+    resolved = resolve_deploy_config(config_profile)
+    client_profile = dict(resolved.client)
     # ------------------------------------------------------------------
     # 安全检查：如果配置中启用了 RTC，拒绝运行
     # RTC（Real-Time Control）模式需要特殊的客户端 pi_client_rtc.py，
@@ -197,10 +202,9 @@ def main() -> None:
         raise ValueError(
             "client.rtc_enabled is true. Use examples/tron2/pi_client_rtc.py for RTC deployment."
         )
-
     # 构建环境配置对象（包含 control_backend、observation_source 等参数）
-    env_config = build_env_config(config_profile)
-
+    env_config = resolved.env_config
+    layout = resolved.layout
     # ------------------------------------------------------------------
     # 提取关键运行参数
     # ------------------------------------------------------------------
@@ -255,8 +259,7 @@ def main() -> None:
     # 使用 with 语句确保环境资源（机器人连接、线程等）被正确清理。
     # ------------------------------------------------------------------
     with Tron2Env(env_config) as env:
-        # reset() 将机器人恢复到初始状态（归零关节、清除缓冲等）
-        env.reset()
+        reset_obs = env.reset()
 
         # ------------------------------------------------------------------
         # 创建 WebSocket 策略客户端
@@ -271,19 +274,20 @@ def main() -> None:
             host=policy_host(client_profile),
             port=policy_port(client_profile),
         )
+        validate_server_physical_dimensions(ws_client_policy.get_server_metadata(), layout)
 
         # ------------------------------------------------------------------
         # 第五步：主控制循环
         # ------------------------------------------------------------------
         # t: 当前步数计数器（从 0 开始）
         t = 0
-
         # last_action: 上一步执行的最后一个动作（用于安全检查和打印差异）
         # 取前 14 维：左臂 7 个关节 + 右臂 7 个关节
         # 每个机械臂用 8 维表示（7 关节 + 1 夹爪），此处忽略夹爪维度，
         # 只关心关节角度的变化幅度。
         # 如果 env.last_action 为 None（第一步），则设为 None。
-        last_action = env.last_action[:14] if env.last_action is not None else None
+        last_action = _arm_values(reset_obs["state"], layout)
+        check_arm_jumps = resolved.modules is None or resolved.modules.arm == "servoj"
 
         # 循环条件：max_steps 为 None 时无限循环，否则执行 max_steps 步
         while max_steps is None or t < max_steps:
@@ -370,14 +374,11 @@ def main() -> None:
             #   actions[i][8:15] → 右臂 7 个关节的目标角度
             #   actions[i][15]   → 右夹爪开合度
             actions = np.stack(ans["actions"], axis=0)
-
             # 打印第一个和最后一个分步动作，用于检查动作序列的合理性
             # left start/end: 左臂动作的起始和目标
             # right start/end: 右臂动作的起始和目标
-            print("left start:", actions[0][:8])
-            print("right start:", actions[0][8:])
-            print("left end:", actions[-1][:8])
-            print("right end:", actions[-1][8:])
+            print("action start:", actions[0])
+            print("action end:", actions[-1])
 
             # 录制动作数据（保存整个动作序列，包含所有分步）
             if save_record:
@@ -390,18 +391,8 @@ def main() -> None:
             # 这里需要将它们逐一发送给机器人执行，每个分步之间按
             # step_period 的频率控制节奏。
             for action in actions:
-                # 构建用于比较的机械臂动作向量：左臂 7 关节 + 右臂 7 关节
-                # 注意这里排除了夹爪维度（索引 7 和 15），因为夹爪变化
-                # 幅度通常很大（从开到关），会影响关节差异的判断。
-                # 索引说明：
-                #   action[:7]   → 左臂 7 个关节
-                #   action[8:15] → 右臂 7 个关节（跳过索引 7 的左夹爪）
-                arm_action = np.concatenate((action[:7], action[8:15]))
-
-                # 安全检查：计算当前动作与上一步动作的差异
-                # 如果某个关节的角度变化超过 0.5 弧度（约 28.6°），
-                # 打印警告——这有助于发现策略模型的异常输出。
-                if last_action is not None:
+                arm_action = _arm_values(action, layout)
+                if check_arm_jumps and last_action is not None:
                     error = np.abs(arm_action - last_action)
                     joint_id = int(np.argmax(error))    # 变化最大的关节索引
                     max_diff = float(error[joint_id])     # 最大变化量

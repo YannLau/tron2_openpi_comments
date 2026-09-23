@@ -27,6 +27,8 @@ deployment profiles.
 - Optional legacy RealSense observation mode for directly attached cameras.
 - RTC deployment client with warmup, observation-timeout recovery, queue
   diagnostics, and optional action smoothing.
+- Modular TRON2 deployment for ServoJ/ServoP arms, gripper/BrainCo2 paired
+  hands, head, chassis, and lifter modules.
 - OpenPI client package under `packages/openpi-client/`.
 
 ## What Is Not Included
@@ -178,7 +180,8 @@ Client fields:
 | `client.task` | Human-readable task name used for record filenames. |
 | `client.policy_host` / `client.policy_port` | Policy server address from the client process. |
 | `client.observation_source` | `bridge` or `legacy`. |
-| `client.state_dim` | `16` for arms+grippers, `18` when head joints are included. |
+| `client.state_dim` | Physical state/action vector width; must match the module layout and training config. |
+| `client.state_layout` | Component order in the flat vector; explicit module configs must match the derived layout. |
 | `client.fps` | Policy action playback rate. |
 | `client.publish_rate` | Background ServoJ command publication rate. |
 | `client.max_steps` | Number of policy chunks to run in non-RTC mode; `null` means run until stopped. |
@@ -190,6 +193,39 @@ Client fields:
 | `robot.ip` / `robot.port` | TRON2 WebSocket controller address. |
 | `bridge.host` | TRON2 Bridge WebSocket host when using bridge observations. |
 | `camera.serial_to_name` | RealSense serial-to-policy-camera-name mapping when using legacy mode. |
+
+#### Modular Hardware Layouts
+
+The generic client template contains examples for the `arm`, `end_effector`,
+`head`, and `mobile_base` sections. Leaving all four sections unspecified keeps
+the legacy-compatible ServoJ + paired-gripper layout. Supplying any section
+enables explicit module selection and validates `client.state_dim` and
+`client.state_layout` against the derived layout.
+
+| Module combination | Physical dimension |
+| --- | ---: |
+| ServoJ/ServoP + paired grippers | 16 |
+| ServoJ/ServoP + paired grippers + head | 18 |
+| ServoJ/ServoP + paired grippers + chassis/lifter | 19 |
+| ServoJ/ServoP + paired grippers + head + chassis/lifter | 21 |
+| ServoJ/ServoP + paired BrainCo2 hands | 26 |
+| ServoJ/ServoP + paired BrainCo2 hands + head | 28 |
+| ServoJ/ServoP + paired BrainCo2 hands + chassis/lifter | 29 |
+| ServoJ/ServoP + paired BrainCo2 hands + head + chassis/lifter | 31 |
+
+ServoJ and ServoP both use seven values per arm, but their meanings differ:
+ServoJ contains joint targets, while ServoP contains
+`[x, y, z, qw, qx, qy, qz]` end-effector poses. ServoP quaternions must not be
+linearly blended. Each BrainCo2 hand uses six values and requires
+`end_effector.command_time`. The chassis/lifter group uses three values:
+`[chassis_linear_x, chassis_angular_z, lifter_state]`.
+
+When Bridge supplies images, ServoP or BrainCo2 requires
+`bridge.state_source: legacy` so physical state is read from the robot
+WebSocket. Lifter control requires
+`mobile_base.lifter_state_source: position_mm`; `raw_q` is observation-only.
+The public runtime supports the WebSocket control backend only. See
+`configs/deploy/tron2_deploy.client.example.yaml` for all fields and comments.
 
 `policy.repo_id` must match the asset directory inside the checkpoint:
 
@@ -295,6 +331,11 @@ Set `fsdp_devices` in the task YAML to the number of devices used by each FSDP
 shard. Keep it at `1` for single-device training; for multi-device training, the
 value must divide the number of JAX devices visible to the process.
 
+`state_dim` and `action_dim` must currently be equal. They must also match the
+dataset state/action width, normalization statistics, checkpoint, the server
+profile's `policy.state_dim`, and the client's physical layout. Choose modular
+task dimensions from the table above.
+
 Compute normalization statistics before the first training run:
 
 ```bash
@@ -312,6 +353,8 @@ uv run scripts/train_tron2_task.py \
 For one-command training, use `scripts/cloud_train_entrypoint_portable.sh`. It
 computes normalization statistics first unless `--skip-norm` is passed, then
 launches training.
+Its `--physical-dim` option writes both `state_dim` and `action_dim` into the
+generated task config. The default is `16`, and the valid range is 1 through 32.
 
 Cloud/platform mode assumes the dataset and weights are mounted by the platform.
 With the default paths, `--repo-id input` means the LeRobot dataset is under
@@ -339,6 +382,9 @@ scripts/cloud_train_entrypoint_portable.sh \
   --max-frames 100000
 ```
 
+For a 19D chassis/lifter task, add `--physical-dim 19` to either generated-config
+command above. Existing 16D tasks retain their default when the option is omitted.
+
 You can also run the portable entrypoint with an edited task YAML. In that mode,
 the YAML controls `repo_id`, `weight_loader`, `assets_base_dir`, and
 `checkpoint_base_dir`; `--data-dir` still sets `HF_LEROBOT_HOME`:
@@ -354,8 +400,8 @@ scripts/cloud_train_entrypoint_portable.sh \
 Real task YAML files are ignored by `.gitignore`; keep only
 `configs/train/tron2_tasks/example.yaml` in the public repository. The template
 supports `repo_id`, prompt, dataset column keys, `action_horizon`, `state_dim`,
-`fsdp_devices`, base checkpoint weights, output directories, `prompt_from_task`,
-and optional `rtc_training_simulated_delay`.
+`action_dim`, `fsdp_devices`, base checkpoint weights, output directories,
+`prompt_from_task`, and optional `rtc_training_simulated_delay`.
 
 ## Network Deployment Boundary
 

@@ -1,22 +1,10 @@
-# Client-side deployment profile template.
-# Copy this file to configs/deploy/<task>_client.local.yaml for private
-# deployment, or to configs/deploy/<task>_client.yaml when publishing a
-# reviewed public task example.
-#
-# Network deployment boundary:
-# - Policy, robot-control, and Bridge interfaces are supported only for
-#   authorized systems on a controlled robot LAN.
-# - Do not expose them to the Internet or use them on an untrusted or shared network.
-# - Some runtime links may not provide application authentication or TLS.
-# - Any Internet-facing, cross-site, or cloud topology requires a separate
-#   security review before use.
-# - Source disclosure is not a functional safety approval or real-robot certification.
-
 client:
   # Human-readable task name used for record filenames.
-  task: TASK_NAME
+  task: desktop
 
   # Policy server address from the client process.
+  # Use 127.0.0.1 when the server and client run on the same machine.
+  # Use the server machine IP when they run on different machines.
   policy_host: 127.0.0.1
   policy_port: 8000
 
@@ -26,42 +14,32 @@ client:
   # from the robot WebSocket.
   observation_source: bridge
 
-  # Default compatibility layout: ServoJ arms and grippers. If any hardware
-  # module section below is enabled, state_dim/state_layout must exactly match
-  # the derived physical layout and the trained policy state/action dimensions.
+  # State sent to the policy: 16 means arms+grippers, 18 includes head joints.
   state_dim: 16
-  state_layout:
-    - left_arm
-    - left_gripper
-    - right_arm
-    - right_gripper
 
   # Policy action playback rate. publish_rate is the background ServoJ rate.
   fps: 30.0
   publish_rate: 300.0
 
-  # Maximum accepted age in seconds for modular robot state.
-  state_max_age: 0.5
-
   # Non-RTC client: number of policy chunks to run. Use null for unlimited.
   max_steps: null
 
-  # Set true when running examples/tron2/pi_client_rtc.py.
-  rtc_enabled: false
+  # Candy uses the RTC client by default.
+  rtc_enabled: true
 
   # RTC run duration in seconds. Set 0 for unlimited until Ctrl+C.
-  duration: 120.0
+  duration: 0
 
   # RTC timing in paper terms. H is read from server metadata/action_horizon.
   # execution_horizon is s; delay is the initial d in action frames.
   execution_horizon: 10
-  delay: 2
+  delay: 6
 
   # Inference-time RTC guidance. When trained_rtc_mode is true, the model uses
   # training-time RTC conditioning and guidance can usually stay disabled.
-  rtc_guidance_enabled: true
+  rtc_guidance_enabled: false
   rtc_guidance_weight: 10.0
-  trained_rtc_mode: false
+  trained_rtc_mode: true
 
   # Recover from short bridge/observation gaps without reusing stale observations.
   obs_timeout_budget_s: 5.0
@@ -90,14 +68,28 @@ client:
   legacy_use_time_sync: true
 
   # Optional per-client prompt. Leave null to use policy.default_prompt.
-  prompt: null
+  prompt:   Put a doll into the gray basket, and put the other doll into the pink basket
+  
+  # 把两个玩偶放到粉色筐，把两支笔放到灰色筐
+  # Put both dolls into the pink basket, and put both pens into the gray basket
+  # 把所有物体都放到灰色筐
+  # Put all the objects into the gray basket
+  # 把两个玩偶放到粉色筐（两支笔留在桌面）
+  # Put both dolls into the pink basket 
+  # 把两支笔放到灰色筐（两个玩偶留在桌面）
+  # Put both pens into the gray basket
+  # 把一个玩偶放到灰色筐，把另一个玩偶放到粉色筐（两支笔留在桌面）  
+  # Put a doll into the gray basket, and put the other doll into the pink basket
+
+
 
 robot:
   # Robot WebSocket controller address.
-  ip: ROBOT_IP
+  ip: 10.192.1.2
   port: 5000
 
   # Arm initialization pose, 14 values: left arm 7 + right arm 7.
+  # Confirm this pose is safe on your robot before deployment.
   init_joints:
     - 0.026899
     - 0.2612
@@ -115,55 +107,18 @@ robot:
     - 0.06469989
 
   # Optional head initialization pose [pitch, yaw].
-  init_head: null
+  init_head:
+    - 1.0467
+    - -0.0139998
 
   # Feedback polling settings for the robot WebSocket transport.
   state_queue_maxlen: 7
   polling_rate: 200.0
   connection_timeout: 5.0
 
-# Hardware module examples. Leave all four sections commented to preserve the
-# default ServoJ + gripper behavior. Supplying any section opts into explicit
-# RobotModules and derives the physical state/action layout.
-#
-# ServoJ and ServoP are mutually exclusive. ServoP represents each arm as
-# [x, y, z, qw, qx, qy, qz]; quaternion values must not be linearly blended.
-# arm:
-#   mode: servop  # servoj | servop
-
-# Both arms use the same end-effector type. BrainCo2 command_time accepts one
-# scalar or six values, one per hand joint.
-# end_effector:
-#   type: brainco2  # gripper | brainco2
-#   command_time: 2.0
-#   polling_rate: 20.0
-#   state_timeout: 0.5
-
-# head.enabled controls policy I/O; robot.init_head independently controls the
-# optional initialization move.
-# head:
-#   enabled: true
-#   command_interval: null
-#   move_duration: null
-#   ack_timeout: 1.0
-
-# The mobile base adds [chassis_linear_x, chassis_angular_z, lifter_state].
-# Lifter commands are absolute millimetres, so enabling control requires
-# lifter_state_source: position_mm. raw_q is observation-only.
-# mobile_base:
-#   enabled: true
-#   auxiliary_polling_rate: 20.0
-#   lifter_state_source: position_mm  # raw_q | position_mm
-#   lifter_control_enabled: true
-#   lifter_command_interval: 0.1
-#   lifter_stream_velocity_mm_s: 80.0
-
-# ServoP and BrainCo2 require bridge.state_source: legacy when images still
-# come from Bridge. The public package supports only the WebSocket backend.
-
 bridge:
   # Required when client.observation_source is "bridge".
-  host: wss://BRIDGE_HOST
+  host: wss://10.192.1.4
   ws_path: /bridge/ws
 
   # "bridge" uses bridge-aligned joint state. "legacy" uses robot WebSocket

@@ -34,6 +34,8 @@ profile schema for robot, camera, bridge, and client options.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from dataclasses import dataclass
 from datetime import datetime
 import logging
 import math
@@ -71,7 +73,13 @@ ensure_external_tron2_env_on_path()
 #    CameraConfig  — 相机配置（分辨率、队列大小、调试图像等）
 #    EnvConfig     — 环境总配置（组合 robot + camera + bridge + client）
 #    Tron2Config   — 机器人配置（IP、端口、初始关节角等）
-from tron2_env import BridgeConfig, CameraConfig, EnvConfig, Tron2Config
+from tron2_env import BrainCo2Config  # noqa: E402
+from tron2_env import BridgeConfig  # noqa: E402
+from tron2_env import CameraConfig  # noqa: E402
+from tron2_env import EnvConfig  # noqa: E402
+from tron2_env import PhysicalLayout  # noqa: E402
+from tron2_env import RobotModules  # noqa: E402
+from tron2_env import Tron2Config  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # 日志记录器：使用 Python 标准库 logging
@@ -141,10 +149,20 @@ LEGACY_CAMERA_NAME_MAP = {
 }
 
 
+@dataclass(frozen=True)
+class ResolvedDeployConfig:
+    """Validated runtime objects shared by the synchronous and RTC clients."""
+
+    profile: Mapping[str, Any]
+    client: Mapping[str, Any]
+    env_config: EnvConfig
+    layout: PhysicalLayout
+    modules: RobotModules | None
+    brainco2_config: BrainCo2Config | None
+
 # ============================================================================
 # YAML 配置加载 / Configuration Loading
 # ============================================================================
-
 def load_deploy_config(path: str | Path | None) -> dict[str, Any]:
     """加载部署 YAML 配置文件，返回嵌套的字典结构。
 
@@ -349,15 +367,15 @@ def build_robot_config(config_profile: dict[str, Any]) -> Tron2Config:
         Tron2Config: 强类型的机器人配置对象
     """
     robot_profile = section(config_profile, "robot")
-
     # 从配置中取 init_joints，如果没指定就用默认值
-    init_joints = robot_profile.get("init_joints") or DEFAULT_INIT_JOINTS
+    init_joints = robot_profile.get("init_joints", DEFAULT_INIT_JOINTS)
 
     return Tron2Config(
         robot_ip=str(robot_profile.get("ip", "ROBOT_IP")),
         port=int(robot_profile.get("port", 5000)),
         init_joints=init_joints,
         init_head=robot_profile.get("init_head"),
+        init_ee_z_min=robot_profile.get("init_ee_z_min", -0.6),
         # 状态队列：机器人状态以流的方式到达，队列用于缓冲最近的 N 个状态
         state_queue_maxlen=int(robot_profile.get("state_queue_maxlen", 7)),
         # 轮询频率：每秒向机器人请求状态的次数
@@ -445,55 +463,79 @@ def build_bridge_config(config_profile: dict[str, Any]) -> BridgeConfig:
     )
 
 
-def build_env_config(config_profile: dict[str, Any]) -> EnvConfig:
-    """从 YAML 配置构建 EnvConfig（环境总配置）对象。
+def build_robot_modules(config_profile: dict[str, Any]) -> RobotModules | None:
+    hardware_sections = ("arm", "end_effector", "head", "mobile_base")
+    if not any(name in config_profile for name in hardware_sections):
+        return None
 
-    EnvConfig 是整个 TRON2 环境的顶层配置，它组合了：
-      - Tron2Config（机器人）
-      - CameraConfig（相机）
-      - BridgeConfig（桥接）
-      - 以及客户端相关的参数
+    arm_profile = section(config_profile, "arm")
+    end_effector_profile = section(config_profile, "end_effector")
+    head_profile = section(config_profile, "head")
+    mobile_profile = section(config_profile, "mobile_base")
+    return RobotModules(
+        arm=str(arm_profile.get("mode", "servoj")),
+        end_effector=str(end_effector_profile.get("type", "gripper")),
+        head=bool_value(head_profile.get("enabled", False)),
+        mobile_base=bool_value(mobile_profile.get("enabled", False)),
+    )
 
-    从 client section 和 robot section 中提取的客户端参数：
 
-    | 字段                   | 默认值      | 说明                           |
-    |------------------------|-------------|--------------------------------|
-    | control_backend        | "websocket" | 控制后端类型                    |
-    | publish_rate           | 300.0       | 动作发布频率（Hz）               |
-    | fps                    | 30.0        | 客户端帧率                      |
-    | time_sync_tolerance    | 0.01        | 时间同步容差（秒）               |
-    | time_sync_max_retries  | 3           | 时间同步最大重试次数              |
-    | legacy_use_time_sync   | True        | 是否使用旧版时间同步             |
-    | state_dim              | 16          | 状态向量维度                     |
-    | observation_source     | "legacy"    | 观测数据来源                     |
-    | bridge_state_source    | "bridge"    | Bridge 状态来源                  |
+def build_brainco2_config(
+    config_profile: dict[str, Any],
+    modules: RobotModules | None,
+) -> BrainCo2Config | None:
+    options = section(config_profile, "end_effector")
+    brainco_fields = {"command_time", "polling_rate", "state_timeout"}
+    if modules is None or modules.end_effector != "brainco2":
+        if brainco_fields & options.keys():
+            raise ValueError("BrainCo2 fields require end_effector.type: brainco2")
+        return None
+    if "command_time" not in options:
+        raise ValueError("end_effector.command_time is required for BrainCo2")
+    return BrainCo2Config(
+        command_time=options["command_time"],
+        polling_rate=float(options.get("polling_rate", 20.0)),
+        state_timeout=float(options.get("state_timeout", 0.5)),
+    )
 
-    参数:
-        config_profile: 完整的配置字典
 
-    返回:
-        EnvConfig: 强类型的环境配置对象
-    """
+def resolve_deploy_config(config_profile: dict[str, Any]) -> ResolvedDeployConfig:
     client_profile = section(config_profile, "client")
     robot_profile = section(config_profile, "robot")
     bridge_profile = section(config_profile, "bridge")
+    head_profile = section(config_profile, "head")
+    mobile_profile = section(config_profile, "mobile_base")
+
+    control_backend = str(
+        client_profile.get("control_backend", robot_profile.get("control_backend", "websocket"))
+    )
+    if control_backend != "websocket":
+        raise ValueError("client.control_backend must be websocket in the public package")
+
+    modules = build_robot_modules(config_profile)
+    brainco2_config = build_brainco2_config(config_profile, modules)
+    state_dim = client_profile.get("state_dim")
+    if modules is None and state_dim is None:
+        state_dim = 16
 
     fps = float(client_profile.get("fps", 30.0))
-    return EnvConfig(
+    env_config = EnvConfig(
         robot_config=build_robot_config(config_profile),
         camera_config=build_camera_config(config_profile),
-        # control_backend 优先使用 client 中的设置，否则回退到 robot 中的设置
-        # 两种都未设置时默认 "websocket"
-        control_backend=str(
-            client_profile.get("control_backend", robot_profile.get("control_backend", "websocket"))
-        ),
-        # publish_rate 同理：client 优先，robot 兜底
+        control_backend=control_backend,
         publish_rate=float(client_profile.get("publish_rate", robot_profile.get("publish_rate", 300.0))),
         fps=fps,
         time_sync_tolerance=float(client_profile.get("time_sync_tolerance", 0.01)),
         time_sync_max_retries=int(client_profile.get("time_sync_max_retries", 3)),
         legacy_use_time_sync=bool_value(client_profile.get("legacy_use_time_sync", True)),
-        state_dim=int(client_profile.get("state_dim", 16)),
+        init_gripper_opening=float(client_profile.get("init_gripper_opening", 0.9)),
+        state_dim=state_dim,
+        state_layout=client_profile.get("state_layout"),
+        auxiliary_polling_rate=float(mobile_profile.get("auxiliary_polling_rate", 20.0)),
+        lifter_state_source=str(mobile_profile.get("lifter_state_source", "raw_q")),
+        lifter_control_enabled=bool_value(mobile_profile.get("lifter_control_enabled", False)),
+        lifter_command_interval=float(mobile_profile.get("lifter_command_interval", 0.1)),
+        lifter_stream_velocity_mm_s=float(mobile_profile.get("lifter_stream_velocity_mm_s", 80.0)),
         observation_source=str(client_profile.get("observation_source", "legacy")),
         # bridge_state_source 优先 bridge 中的 setting，再回退到 client
         bridge_state_source=str(
@@ -501,7 +543,62 @@ def build_env_config(config_profile: dict[str, Any]) -> EnvConfig:
         ),
         bridge_config=build_bridge_config(config_profile),
         raw_config=normalized_raw_config(config_profile),
+        modules=modules,
+        brainco2_config=brainco2_config,
+        state_max_age=float(client_profile.get("state_max_age", 0.5)),
+        head_command_interval=head_profile.get("command_interval"),
+        head_move_duration=head_profile.get("move_duration"),
+        head_ack_timeout=float(head_profile.get("ack_timeout", 1.0)),
     )
+    return ResolvedDeployConfig(
+        profile=config_profile,
+        client=client_profile,
+        env_config=env_config,
+        layout=env_config.physical_layout,
+        modules=modules,
+        brainco2_config=brainco2_config,
+    )
+
+
+def build_env_config(config_profile: dict[str, Any]) -> EnvConfig:
+    return resolve_deploy_config(config_profile).env_config
+
+
+def physical_layout(client_profile: Mapping[str, Any]) -> PhysicalLayout:
+    return PhysicalLayout.resolve(client_profile.get("state_layout"), client_profile.get("state_dim"))
+
+
+def component_indices(layout: PhysicalLayout, *components: str) -> np.ndarray:
+    indices: list[int] = []
+    for component in components:
+        component_slice = layout.component_slice(component)
+        indices.extend(range(component_slice.start, component_slice.stop))
+    return np.asarray(indices, dtype=np.int64)
+
+
+def arm_indices(layout: PhysicalLayout) -> np.ndarray:
+    return component_indices(layout, "left_arm", "right_arm")
+
+
+def end_effector_indices(layout: PhysicalLayout) -> np.ndarray:
+    return component_indices(
+        layout,
+        layout.left_end_effector_component,
+        layout.right_end_effector_component,
+    )
+
+
+def validate_server_physical_dimensions(
+    server_metadata: Mapping[str, Any],
+    layout: PhysicalLayout,
+) -> None:
+    server_state_dim = int(server_metadata.get("state_dim", 16))
+    server_action_dim = int(server_metadata.get("action_dim", server_state_dim))
+    if server_state_dim != layout.dim or server_action_dim != layout.dim:
+        raise RuntimeError(
+            "TRON2 client/server physical dimension mismatch: "
+            f"client={layout.dim}, server state={server_state_dim}, action={server_action_dim}"
+        )
 
 
 # ============================================================================
