@@ -1,0 +1,22 @@
+<View>
+  <Header value="夹爪事件准备条件：仅根据提供的当前观测判断"/>
+  <Text name="instruction" value="$instruction"/>
+  <Text name="decision_context" value="$decision_context"/>
+  <View style="display:flex; gap:12px;">
+    <View style="flex:1;"><Header value="头部相机"/><Image name="cam_high" value="$cam_high"/></View>
+    <View style="flex:1;"><Header value="左腕相机"/><Image name="cam_left" value="$cam_left_wrist"/></View>
+    <View style="flex:1;"><Header value="右腕相机"/><Image name="cam_right" value="$cam_right_wrist"/></View>
+  </View>
+  <Header value="现在是否具备候选事件的可见准备条件？无法判断时请选择 unknown。"/>
+  <Choices name="readiness" toName="cam_high" choice="single" required="true">
+    <Choice value="yes"/><Choice value="no"/><Choice value="unknown"/>
+  </Choices>
+  <Header value="判断依据（可多选）"/>
+  <Choices name="reasons" toName="cam_high" choice="multiple">
+    <Choice value="target_visible"/><Choice value="target_occluded"/>
+    <Choice value="alignment_sufficient"/><Choice value="needs_reposition"/>
+    <Choice value="target_ambiguous"/><Choice value="insufficient_depth_evidence"/>
+    <Choice value="release_support_unclear"/><Choice value="other"/>
+  </Choices>
+  <TextArea name="note" toName="cam_high" placeholder="补充可见证据；不要推测后续执行结果。"/>
+</View>
