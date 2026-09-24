@@ -1,0 +1,21 @@
+[
+  {
+    "data": {
+      "instruction": "Put the banana on the plate.",
+      "decision_context": "手臂：left；候选事件：close；目标：banana。示例占位任务，媒体需由适配器生成。",
+      "cam_high": "/media/EXAMPLE_ONLY/decision_0001/cam_high.png",
+      "cam_left_wrist": "/media/EXAMPLE_ONLY/decision_0001/cam_left_wrist.png",
+      "cam_right_wrist": "/media/EXAMPLE_ONLY/decision_0001/cam_right_wrist.png",
+      "sample_id": "EXAMPLE_ONLY_decision_0001",
+      "source_episode_uuid": "EXAMPLE_ONLY_NOT_A_REAL_EPISODE",
+      "frame_index": 120,
+      "arm": "left",
+      "candidate_event": "close",
+      "target_object_id": "banana",
+      "evidence_start_frame": 120,
+      "evidence_end_frame": 120,
+      "evidence_mode": "causal",
+      "ontology_version": "draft-0.1"
+    }
+  }
+]
