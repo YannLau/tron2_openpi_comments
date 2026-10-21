@@ -6,9 +6,7 @@ policy:
   repo_id: input
 
   # Trained checkpoint step directory.
-  # Update this path after downloading the public Cloth weights.
-  # checkpoint_dir: /home/limx/joren_ws/troncamp/best_checkpoints/4_desktop_5000/
-
+  # Update this path after downloading the public Organize the Desktop weights.
   checkpoint_dir: checkpoints/pi05_tron2_desktop/desktop_h30_rtc_20000
 
   # Default task instruction used when the client does not pass --prompt.
