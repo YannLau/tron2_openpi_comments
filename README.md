@@ -1,8 +1,18 @@
-# English | [中文](README_CN.md)
+<div align="center">
+
+<img src="docs/tron2_openpi_banner.png" alt="TRON2 OpenPI: VLA policies for real-robot manipulation" width="100%">
+
+**English** | [中文](README_CN.md) | [Installation](INSTALL.md)
+
+[![Python](https://img.shields.io/badge/python-3.11-3776AB)](.python-version)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![Models on Hugging Face](https://img.shields.io/badge/Hugging%20Face-models-FFD21E)](https://huggingface.co/limxdynamics/tron2-openpi-models)
+[![Models on ModelScope](https://img.shields.io/badge/ModelScope-models-624AFF)](https://modelscope.cn/models/limx-tron2/tron2-openpi-models)
+[![Runtime: tron2_env](https://img.shields.io/badge/runtime-tron2__env-0A7BBB)](https://github.com/limxdynamics/tron2_env)
+
+</div>
 
 # TRON2 OpenPI
-
-[Installation](INSTALL.md)
 
 `tron2_openpi` is a TRON2 deployment-focused derivative of the OpenPI project.
 It keeps the OpenPI policy-serving and pi0/pi0.5 model stack, then adds TRON2
@@ -13,6 +23,50 @@ This repository is meant to be used together with the sibling `tron2_env`
 runtime package. It is an integration and deployment example, not a complete
 release of private checkpoints, datasets, low-level robot SDKs, or local
 deployment profiles.
+
+## Highlights
+
+- **pi0 / pi0.5 on a real robot.** OpenPI's policy serving and model stack, wired to TRON2 through policy transforms and deployment profiles.
+- **Six public tasks with weights.** Candy, Cloth, Sort, Organize the Desktop, Bean Pouring and Clean the Floor, each with a user guide and weights on Hugging Face and ModelScope.
+- **Fine-tune a new task from one YAML file.** `scripts/train_tron2_task.py` plus `configs/train/tron2_tasks/example.yaml`.
+- **Smooth real-time execution.** RTC client with warmup, observation-timeout recovery, queue diagnostics and optional action smoothing.
+- **Modular hardware.** ServoJ / ServoP arms, grippers or BrainCo2 hands, head, chassis and lifter.
+
+## Example Tasks and Public Resources
+
+Public task resources are listed below and will be updated as more examples are
+released.
+
+| Task | User guide | Model weights | Public deploy profiles |
+| --- | --- | --- | --- |
+| Candy | [TRON2 OpenPI Candy user guide](https://cwjgfm21di.feishu.cn/wiki/NA5Rw1dWPiu6dwkFAfTcnaFLnQf) | [Hugging Face](https://huggingface.co/limxdynamics/tron2-openpi-models) / [ModelScope](https://modelscope.cn/models/limx-tron2/tron2-openpi-models) | `configs/deploy/candy_server.yaml`, `configs/deploy/candy_client.yaml` |
+| Cloth | [TRON2 OpenPI Cloth user guide](https://cwjgfm21di.feishu.cn/wiki/AsuRwJQ94igFPvkcyatctA4JnTc) | [Hugging Face](https://huggingface.co/limxdynamics/tron2-openpi-models) / [ModelScope](https://modelscope.cn/models/limx-tron2/tron2-openpi-models) | `configs/deploy/cloth_server.yaml`, `configs/deploy/cloth_client.yaml` |
+| Sort | [TRON2 OpenPI Sort user guide](https://cwjgfm21di.feishu.cn/wiki/Lm60wXBBligMKHkwDcjcZ1Rlnpb) | [Hugging Face](https://huggingface.co/limxdynamics/tron2-openpi-models) / [ModelScope](https://modelscope.cn/models/limx-tron2/tron2-openpi-models) | `configs/deploy/sort_client.yaml`, `configs/deploy/sort_server.yaml` |
+| Organize the Desktop | [TRON2 OpenPI Organize the Desktop user guide](https://cwjgfm21di.feishu.cn/wiki/COE0whc3giulI6kN5V3cNmj1nxg) | [Hugging Face](https://huggingface.co/limxdynamics/tron2-openpi-models) / [ModelScope](https://modelscope.cn/models/limx-tron2/tron2-openpi-models) | — |
+| Bean Pouring | [TRON2 OpenPI Bean Pouring user guide](https://cwjgfm21di.feishu.cn/wiki/Jm0CwcUXHiz9HMkKkIvcvavhnQb) | [Hugging Face](https://huggingface.co/limxdynamics/tron2-openpi-models) / [ModelScope](https://modelscope.cn/models/limx-tron2/tron2-openpi-models) | — |
+| Clean the Floor | [TRON2 OpenPI Clean the Floor user guide](https://cwjgfm21di.feishu.cn/wiki/CZMRwbgR5ipaDKknTZwcuMibnRg) | [Hugging Face](https://huggingface.co/limxdynamics/tron2-openpi-models) / [ModelScope](https://modelscope.cn/models/limx-tron2/tron2-openpi-models) | — |
+
+Model weights and checkpoints are not stored in this repository. Download the
+weights from the linked model repository, then set the actual checkpoint path in
+the task server profile before running a robot.
+
+## How It Fits Together
+
+```text
+  train_tron2_task.py ──► checkpoint            (fine-tune pi0 / pi0.5 on a TRON2 task)
+                              │
+                              ▼
+  serve_policy.py   policy server (GPU host)
+        ▲  │
+        │  │  WebSocket, controlled robot LAN
+  obs   │  ▼  action chunks
+  pi_client.py / pi_client_rtc.py   robot client
+        │
+        ▼
+  tron2_env  ──►  TRON2 robot       (motion control, Bridge / RealSense observation)
+```
+
+The robot client imports the sibling [`tron2_env`](https://github.com/limxdynamics/tron2_env) runtime for motion control and observations.
 
 ## What This Repository Provides
 
@@ -40,24 +94,6 @@ deployment profiles.
   deployment profiles.
 - The undeveloped low-level robot transport.
 - A safety certification for unattended robot operation.
-
-## Example Tasks and Public Resources
-
-Public task resources are listed below and will be updated as more examples are
-released.
-
-| Task | User guide | Model weights | Public deploy profiles |
-| --- | --- | --- | --- |
-| Candy | [TRON2 OpenPI Candy user guide](https://cwjgfm21di.feishu.cn/wiki/NA5Rw1dWPiu6dwkFAfTcnaFLnQf) | [Hugging Face](https://huggingface.co/limx-tron2/tron2-openpi-models) / [ModelScope](https://modelscope.cn/models/limx-tron2/tron2-openpi-models) | `configs/deploy/candy_server.yaml`, `configs/deploy/candy_client.yaml` |
-| Cloth | [TRON2 OpenPI Cloth user guide](https://cwjgfm21di.feishu.cn/wiki/AsuRwJQ94igFPvkcyatctA4JnTc) | [Hugging Face](https://huggingface.co/limx-tron2/tron2-openpi-models) / [ModelScope](https://modelscope.cn/models/limx-tron2/tron2-openpi-models) | `configs/deploy/cloth_server.yaml`, `configs/deploy/cloth_client.yaml` |
-| Sort | [TRON2 OpenPI Sort user guide](https://cwjgfm21di.feishu.cn/wiki/Lm60wXBBligMKHkwDcjcZ1Rlnpb) | [Hugging Face](https://huggingface.co/limxdynamics/tron2-openpi-models) / [ModelScope](https://modelscope.cn/models/limx-tron2/tron2-openpi-models) | `configs/deploy/sort_client.yaml`, `configs/deploy/sort_server.yaml` |
-| Organize the Desktop | [TRON2 OpenPI Organize the Desktop user guide](https://cwjgfm21di.feishu.cn/wiki/COE0whc3giulI6kN5V3cNmj1nxg) | [Hugging Face](https://huggingface.co/limxdynamics/tron2-openpi-models) / [ModelScope](https://modelscope.cn/models/limx-tron2/tron2-openpi-models) | — |
-| Bean Pouring | [TRON2 OpenPI Bean Pouring user guide](https://cwjgfm21di.feishu.cn/wiki/Jm0CwcUXHiz9HMkKkIvcvavhnQb) | [Hugging Face](https://huggingface.co/limxdynamics/tron2-openpi-models) / [ModelScope](https://modelscope.cn/models/limx-tron2/tron2-openpi-models) | — |
-| Clean the Floor | [TRON2 OpenPI Clean the Floor user guide](https://cwjgfm21di.feishu.cn/wiki/CZMRwbgR5ipaDKknTZwcuMibnRg) | [Hugging Face](https://huggingface.co/limxdynamics/tron2-openpi-models) / [ModelScope](https://modelscope.cn/models/limx-tron2/tron2-openpi-models) | — |
-
-Model weights and checkpoints are not stored in this repository. Download the
-weights from the linked model repository, then set the actual checkpoint path in
-the task server profile before running a robot.
 
 ## Repository Layout
 
