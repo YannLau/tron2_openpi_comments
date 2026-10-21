@@ -47,19 +47,9 @@ transform、部署配置模板和 TRON2 真机客户端示例。
 
 ## 整体架构
 
-```text
-  train_tron2_task.py ──► checkpoint            (fine-tune pi0 / pi0.5 on a TRON2 task)
-                              │
-                              ▼
-  serve_policy.py   policy server (GPU host)
-        ▲  │
-        │  │  WebSocket, controlled robot LAN
-  obs   │  ▼  action chunks
-  pi_client.py / pi_client_rtc.py   robot client
-        │
-        ▼
-  tron2_env  ──►  TRON2 robot       (motion control, Bridge / RealSense observation)
-```
+<p align="center">
+  <img src="docs/images/architecture_cn.png" alt="整体架构：任务微调、策略服务、搭载 tron2_env 的机器人客户端、TRON2 控制器与 Bridge，均位于受控机器人局域网内" width="100%">
+</p>
 
 机器人客户端通过同级的 [`tron2_env`](https://github.com/limxdynamics/tron2_env) 运行时完成运动控制和观测采集。
 
@@ -226,6 +216,10 @@ client 字段：
 
 #### 模块化硬件布局
 
+<p align="center">
+  <img src="docs/images/state_layout_cn.png" alt="16、19、28、31 维模块组合对应的状态与动作向量布局" width="100%">
+</p>
+
 通用 client 模板包含 `arm`、`end_effector`、`head` 和 `mobile_base` 配置示例。
 四个区块均不配置时，继续使用兼容旧任务的 ServoJ + 双夹爪布局；配置任一区块后，
 客户端会按显式模块推导布局并校验 `client.state_dim` 和 `client.state_layout`。
@@ -302,6 +296,12 @@ uv run examples/tron2/pi_client.py \
 
 ### RTC 部署
 
+<p align="center">
+  <img src="docs/images/rtc_cn.png" alt="RTC 时序：队列降到 H − s 时触发推理，推理约 d 步，引导权重衰减，然后合并" width="100%">
+</p>
+
+<sub>RTC 客户端如何让推理与执行并行。图中数值取自 `configs/deploy/candy_client.yaml` 和 `candy_server.yaml`。</sub>
+
 RTC 使用同一个 server 命令。server 会自动检测加载的模型是否支持 RTC，并在
 websocket metadata 中发布 `rtc_enabled` 和 `action_horizon`。client 侧运行参数来自
 YAML。
@@ -332,6 +332,10 @@ RTC client 会先 warmup 模型并填充 action queue；运行中会在短暂观
 `client.rtc_action_postprocess` 开启可选的动作平滑。
 
 ## 训练新的 TRON2 任务
+
+<p align="center">
+  <img src="docs/images/training_cn.png" alt="训练流程：任务 YAML、归一化统计、微调训练、部署" width="100%">
+</p>
 
 公开任务配置建议使用 YAML 入口，而不是直接改 `src/openpi/training/config.py`：
 

@@ -52,19 +52,9 @@ the task server profile before running a robot.
 
 ## How It Fits Together
 
-```text
-  train_tron2_task.py ──► checkpoint            (fine-tune pi0 / pi0.5 on a TRON2 task)
-                              │
-                              ▼
-  serve_policy.py   policy server (GPU host)
-        ▲  │
-        │  │  WebSocket, controlled robot LAN
-  obs   │  ▼  action chunks
-  pi_client.py / pi_client_rtc.py   robot client
-        │
-        ▼
-  tron2_env  ──►  TRON2 robot       (motion control, Bridge / RealSense observation)
-```
+<p align="center">
+  <img src="docs/images/architecture_en.png" alt="Architecture: fine-tune, policy server, robot client with tron2_env, TRON2 controller and Bridge on a controlled robot LAN" width="100%">
+</p>
 
 The robot client imports the sibling [`tron2_env`](https://github.com/limxdynamics/tron2_env) runtime for motion control and observations.
 
@@ -235,6 +225,10 @@ Client fields:
 
 #### Modular Hardware Layouts
 
+<p align="center">
+  <img src="docs/images/state_layout_en.png" alt="State and action vector layouts for 16D, 19D, 28D and 31D module combinations" width="100%">
+</p>
+
 The generic client template contains examples for the `arm`, `end_effector`,
 `head`, and `mobile_base` sections. Leaving all four sections unspecified keeps
 the legacy-compatible ServoJ + paired-gripper layout. Supplying any section
@@ -319,6 +313,12 @@ Stop the client manually when `client.max_steps` is `null`.
 
 ### RTC Deployment
 
+<p align="center">
+  <img src="docs/images/rtc_en.png" alt="RTC timing: trigger at H minus s, inference for about d steps, guidance weights, and merge" width="100%">
+</p>
+
+<sub>How the RTC client overlaps inference with execution. Values come from `configs/deploy/candy_client.yaml` and `candy_server.yaml`.</sub>
+
 RTC uses the same server command. The server detects whether the loaded model
 supports RTC and publishes `rtc_enabled` plus `action_horizon` in websocket
 metadata. The client supplies runtime timing from the YAML.
@@ -350,6 +350,10 @@ diagnostics, and can apply optional client-side action smoothing through
 `client.rtc_action_postprocess`.
 
 ## Training A New TRON2 Task
+
+<p align="center">
+  <img src="docs/images/training_en.png" alt="Training pipeline: task YAML, norm stats, fine-tune, deploy" width="100%">
+</p>
 
 For public task configs, prefer the YAML entry point instead of editing
 `src/openpi/training/config.py`:
