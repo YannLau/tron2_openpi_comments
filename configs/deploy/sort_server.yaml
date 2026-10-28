@@ -6,7 +6,7 @@ policy:
   repo_id: input
 
   # Trained checkpoint step directory.
-  # Update this path after downloading the public Cloth weights.
+  # Update this path after downloading the public Sort weights.
   checkpoint_dir: checkpoints/pi05_tron2_sort/sort_h50_rtc_30000
 
   # Default task instruction used when the client does not pass --prompt.
